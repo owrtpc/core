@@ -1,0 +1,8 @@
+{
+	"admin/services/owrtpc": {
+		"title": "Parental Control",
+		"order": 40,
+		"action": { "type": "view", "path": "owrtpc/profiles" },
+		"depends": { "acl": [ "luci-app-owrtpc" ] }
+	}
+}

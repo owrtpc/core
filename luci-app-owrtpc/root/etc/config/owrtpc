@@ -1,0 +1,17 @@
+config globals 'main'
+	option enabled '1'
+	option sample_interval '60'
+	option activity_threshold_bytes '1024'
+	option checkpoint_interval '900'
+	list monitored_network 'wan'
+	list monitored_network 'wan6'
+
+# Example (disabled):
+# config profile 'children'
+#	option name 'Children'
+#	option enabled '0'
+#	option blocked '0'
+#	option daily_minutes '120'
+#	option bedtime_start '21:30'
+#	option bedtime_end '07:00'
+#	list device 'AA:BB:CC:DD:EE:FF'

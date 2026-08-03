@@ -1,0 +1,30 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+
+OWRTPCCTL="${OWRTPCCTL:-/usr/sbin/owrtpcctl}"
+running=1
+
+stop() {
+	running=0
+}
+
+reload() {
+	"$OWRTPCCTL" apply
+}
+
+trap stop TERM INT
+trap reload HUP
+
+"$OWRTPCCTL" init || exit 1
+
+while [ "$running" -eq 1 ]; do
+	interval=$(uci -q get owrtpc.main.sample_interval)
+	case "$interval" in ''|*[!0-9]*|0) interval=60 ;; esac
+	sleep "$interval" &
+	wait $!
+	[ "$running" -eq 1 ] || break
+	"$OWRTPCCTL" sample || logger -t owrtpc 'usage sample failed'
+done
+
+"$OWRTPCCTL" checkpoint
+exit 0

@@ -1,0 +1,19 @@
+{
+	"luci-app-owrtpc": {
+		"description": "Grant access to OWRTPC parental control",
+		"read": {
+			"ubus": {
+				"owrtpc": [ "status", "validate" ],
+				"luci-rpc": [ "getDHCPLeases" ]
+			},
+			"uci": [ "firewall", "owrtpc" ]
+		},
+		"write": {
+			"ubus": {
+				"owrtpc": [ "set_block", "refresh" ],
+				"uci": [ "add", "apply", "confirm", "delete", "order", "rename", "set" ]
+			},
+			"uci": [ "owrtpc" ]
+		}
+	}
+}

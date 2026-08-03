@@ -1,0 +1,24 @@
+# Operating-system and editor files
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Firmware images and generated packages
+*.bin
+*.img
+*.ipk
+*.apk
+
+# Extracted or generated OpenWrt filesystems
+rootfs/
+build/
+dist/
+tmp/

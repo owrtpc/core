@@ -1,0 +1,120 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+
+. /usr/share/libubox/jshn.sh
+. /lib/functions.sh
+
+OWRTPCCTL=/usr/sbin/owrtpcctl
+
+safe_profile() {
+	case "$1" in
+		''|*[!A-Za-z0-9_\-]*) return 1 ;;
+		*) [ "$(uci -q get "owrtpc.$1")" = 'profile' ] ;;
+	esac
+}
+
+rpc_error() {
+	json_init
+	json_add_boolean success 0
+	json_add_string error "$1"
+	json_dump
+}
+
+rpc_status() {
+	status_file=$(mktemp /tmp/owrtpc-rpc-status.XXXXXX) || return 1
+	if ! "$OWRTPCCTL" status > "$status_file"; then
+		rm -f "$status_file"
+		rpc_error 'Unable to read OWRTPC status'
+		return
+	fi
+	json_init
+	json_add_string date "$(date +%F)"
+	json_add_array profiles
+	tab=$(printf '\t')
+	{
+		IFS= read -r _header
+		while IFS="$tab" read -r section name used limit remaining reason manual; do
+			[ -n "$section" ] || continue
+			json_add_object ''
+			json_add_string section "$section"
+			json_add_string name "$name"
+			json_add_int used_seconds "${used:-0}"
+			json_add_int limit_seconds "${limit:-0}"
+			json_add_int remaining_seconds "${remaining:-0}"
+			json_add_string reason "${reason:-none}"
+			json_add_boolean manual_blocked "${manual:-0}"
+			case "$reason" in none|disabled) json_add_boolean blocked 0 ;; *) json_add_boolean blocked 1 ;; esac
+			json_close_object
+		done
+	} < "$status_file"
+	json_close_array
+	json_dump
+	rm -f "$status_file"
+}
+
+rpc_set_block() {
+	json_load "$1" || { rpc_error 'Invalid JSON request'; return; }
+	json_get_var profile profile
+	json_get_var blocked blocked
+	safe_profile "$profile" || { rpc_error 'Unknown profile'; return; }
+	case "$blocked" in
+		1|true) value=1 ;;
+		0|false) value=0 ;;
+		*) rpc_error 'blocked must be a boolean'; return ;;
+	esac
+	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
+	uci set "owrtpc.$profile.blocked=$value"
+	uci commit owrtpc
+	if "$OWRTPCCTL" apply; then
+		json_init; json_add_boolean success 1; json_dump
+	else
+		rpc_error 'Policy refresh failed'
+	fi
+}
+
+rpc_refresh() {
+	if "$OWRTPCCTL" apply; then
+		json_init; json_add_boolean success 1; json_dump
+	else
+		rpc_error 'Policy refresh failed'
+	fi
+}
+
+rpc_validate() {
+	message_file=$(mktemp /tmp/owrtpc-rpc-validate.XXXXXX) || return 1
+	"$OWRTPCCTL" validate > "$message_file" 2>&1
+	result=$?
+	json_init
+	[ "$result" -eq 0 ] && json_add_boolean valid 1 || json_add_boolean valid 0
+	json_add_array messages
+	while IFS= read -r line; do
+		[ -n "$line" ] && json_add_string '' "$line"
+	done < "$message_file"
+	json_close_array
+	json_dump
+	rm -f "$message_file"
+}
+
+case "$1" in
+	list)
+		json_init
+		json_add_object status; json_close_object
+		json_add_object set_block
+		json_add_string profile String
+		json_add_string blocked Boolean
+		json_close_object
+		json_add_object refresh; json_close_object
+		json_add_object validate; json_close_object
+		json_dump
+		;;
+	call)
+		read -r request
+		case "$2" in
+			status) rpc_status ;;
+			set_block) rpc_set_block "$request" ;;
+			refresh) rpc_refresh ;;
+			validate) rpc_validate ;;
+			*) rpc_error 'Unknown method' ;;
+		esac
+		;;
+esac

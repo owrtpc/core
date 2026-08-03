@@ -1,0 +1,13 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+
+if ! uci -q show firewall | grep -q "path='/usr/share/owrtpc/firewall.include'"; then
+	uci add firewall include >/dev/null
+	uci set firewall.@include[-1].type='script'
+	uci set firewall.@include[-1].path='/usr/share/owrtpc/firewall.include'
+	uci set firewall.@include[-1].fw4_compatible='1'
+	uci commit firewall
+fi
+
+/etc/init.d/owrtpc enable
+exit 0

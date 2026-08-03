@@ -1,0 +1,76 @@
+# OWRT Parental Control (OWRTPC)
+
+OWRTPC is an independent, open-source parental-control application for OpenWrt
+25.12 and newer. It provides a LuCI interface backed by UCI, rpcd and
+nftables/firewall4.
+
+The first milestone supports:
+
+- independent profiles;
+- multiple devices per profile, with one profile at most per device;
+- a daily profile allowance shared cumulatively by all its devices;
+- a daily bedtime window, including windows crossing midnight;
+- an immediate manual block/unblock action;
+- lightweight usage accounting with periodic, configurable flash checkpoints.
+
+## Daily allowance semantics
+
+Allowances are stored in minutes per profile. Usage is measured in
+**device-minutes**. If two devices assigned to the same profile are active for
+30 minutes at the same time, that profile consumes 60 minutes. Usage belonging
+to another profile is accounted independently.
+
+A device is considered active during a sampling interval when it transfers at
+least `activity_threshold_bytes` bytes. This prevents background noise from
+consuming the allowance. Both the threshold and sampling interval are
+configurable.
+
+## Repository layout
+
+The package is in `luci-app-owrtpc/` and can be copied into the `package/`
+directory of an OpenWrt build tree or exposed through a package feed.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for build and test instructions.
+The [Docker environment](docker/README.md) runs the real OpenWrt 25.12.5 ARM64
+userspace extracted from a sysupgrade image for UI, API and backend smoke tests.
+
+## Development installation
+
+Clone the repository into an OpenWrt buildroot with the LuCI feed installed, or
+symlink the package directory into an existing tree:
+
+```sh
+ln -s /path/to/owrt-parental-control/luci-app-owrtpc \
+    package/luci-app-owrtpc
+make menuconfig
+make package/luci-app-owrtpc/compile V=s
+```
+
+Select **LuCI > Applications > luci-app-owrtpc** in `menuconfig`. Published
+installation packages and stable upgrade instructions will be added with the
+first release; until then, builds from this repository are intended for
+development and testing.
+
+## Project status
+
+This is an early MVP. Test it on a non-critical router before relying on it.
+MAC-address based identity is appropriate for a home-network control, but a
+client that can change or spoof its MAC address can bypass it.
+
+Firewall software/hardware flow offloading must currently be disabled so every
+forwarded packet reaches the accounting hook. See the architecture notes for
+details.
+
+## Contributing and security
+
+Bug reports and focused pull requests are welcome. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change. Please report
+security issues according to [SECURITY.md](SECURITY.md), not in a public issue.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
+
+OpenWrt and LuCI are separate projects. OWRTPC is not affiliated with or
+endorsed by the OpenWrt project.

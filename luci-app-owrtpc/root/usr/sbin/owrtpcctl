@@ -1,0 +1,445 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+
+UCI_BIN="${OWRTPC_UCI_BIN:-uci}"
+NFT_BIN="${OWRTPC_NFT_BIN:-nft}"
+UBUS_BIN="${OWRTPC_UBUS_BIN:-ubus}"
+JSONFILTER_BIN="${OWRTPC_JSONFILTER_BIN:-jsonfilter}"
+STATE_DIR="${OWRTPC_STATE_DIR:-/tmp/owrtpc}"
+PERSIST_DIR="${OWRTPC_PERSIST_DIR:-/etc/owrtpc/state}"
+FUNCTIONS_LIB="${OWRTPC_FUNCTIONS_LIB:-/lib/functions.sh}"
+
+if [ ! -r "$FUNCTIONS_LIB" ]; then
+	echo "owrtpcctl: missing $FUNCTIONS_LIB" >&2
+	exit 1
+fi
+
+# shellcheck source=/dev/null
+. "$FUNCTIONS_LIB"
+
+log() {
+	logger -t owrtpc -- "$*" 2>/dev/null || printf '%s\n' "$*" >&2
+}
+
+safe_id() {
+	case "$1" in
+		''|*[!A-Za-z0-9_\-]*) return 1 ;;
+		*) return 0 ;;
+	esac
+}
+
+normalize_mac() {
+	printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
+}
+
+valid_mac() {
+	printf '%s\n' "$1" | grep -Eq '^[[:xdigit:]]{2}(:[[:xdigit:]]{2}){5}$'
+}
+
+valid_time() {
+	printf '%s\n' "$1" | grep -Eq '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+}
+
+time_minutes() {
+	value="$1"
+	hour=${value%:*}
+	minute=${value#*:}
+	# Strip leading zeroes without relying on non-POSIX base prefixes.
+	hour=$(printf '%s' "$hour" | sed 's/^0//')
+	minute=$(printf '%s' "$minute" | sed 's/^0//')
+	[ -n "$hour" ] || hour=0
+	[ -n "$minute" ] || minute=0
+	printf '%s\n' $((hour * 60 + minute))
+}
+
+is_bedtime() {
+	start="$1"
+	end="$2"
+	now_minutes="$3"
+	valid_time "$start" || return 1
+	valid_time "$end" || return 1
+	start_minutes=$(time_minutes "$start")
+	end_minutes=$(time_minutes "$end")
+	[ "$start_minutes" -ne "$end_minutes" ] || return 1
+
+	if [ "$start_minutes" -lt "$end_minutes" ]; then
+		[ "$now_minutes" -ge "$start_minutes" ] && [ "$now_minutes" -lt "$end_minutes" ]
+	else
+		[ "$now_minutes" -ge "$start_minutes" ] || [ "$now_minutes" -lt "$end_minutes" ]
+	fi
+}
+
+ensure_state() {
+	umask 077
+	mkdir -p "$STATE_DIR" "$PERSIST_DIR"
+	today=$(date +%F)
+	state_date=''
+	[ -r "$STATE_DIR/date" ] && state_date=$(sed -n '1p' "$STATE_DIR/date")
+
+	if [ "$state_date" != "$today" ]; then
+		for state_file in "$STATE_DIR"/profile-*.used; do
+			[ -e "$state_file" ] && rm -f "$state_file"
+		done
+		printf '%s\n' "$today" > "$STATE_DIR/date"
+		printf '0\n' > "$STATE_DIR/last_sample"
+	fi
+}
+
+restore_state() {
+	ensure_state
+	today=$(date +%F)
+	persist_date=''
+	[ -r "$PERSIST_DIR/date" ] && persist_date=$(sed -n '1p' "$PERSIST_DIR/date")
+	[ "$persist_date" = "$today" ] || return 0
+
+	for state_file in "$PERSIST_DIR"/profile-*.used; do
+		[ -e "$state_file" ] || continue
+		cp "$state_file" "$STATE_DIR/$(basename "$state_file")"
+	done
+}
+
+checkpoint_state() {
+	ensure_state
+	today=$(date +%F)
+	printf '%s\n' "$today" > "$PERSIST_DIR/date.tmp"
+	mv "$PERSIST_DIR/date.tmp" "$PERSIST_DIR/date"
+	for old_file in "$PERSIST_DIR"/profile-*.used; do
+		[ -e "$old_file" ] && rm -f "$old_file"
+	done
+	for state_file in "$STATE_DIR"/profile-*.used; do
+		[ -e "$state_file" ] || continue
+		base=$(basename "$state_file")
+		cp "$state_file" "$PERSIST_DIR/$base.tmp"
+		mv "$PERSIST_DIR/$base.tmp" "$PERSIST_DIR/$base"
+	done
+	date +%s > "$STATE_DIR/last_checkpoint"
+}
+
+get_used() {
+	profile="$1"
+	safe_id "$profile" || { printf '0\n'; return; }
+	used=0
+	[ -r "$STATE_DIR/profile-$profile.used" ] && used=$(sed -n '1p' "$STATE_DIR/profile-$profile.used")
+	case "$used" in ''|*[!0-9]*) used=0 ;; esac
+	printf '%s\n' "$used"
+}
+
+set_used() {
+	profile="$1"
+	used="$2"
+	safe_id "$profile" || return 1
+	printf '%s\n' "$used" > "$STATE_DIR/profile-$profile.used.tmp"
+	mv "$STATE_DIR/profile-$profile.used.tmp" "$STATE_DIR/profile-$profile.used"
+}
+
+profile_reason() {
+	profile="$1"
+	config_get_bool profile_enabled "$profile" enabled 1
+	[ "$profile_enabled" -eq 1 ] || { printf 'disabled\n'; return; }
+
+	config_get_bool manually_blocked "$profile" blocked 0
+	if [ "$manually_blocked" -eq 1 ]; then
+		printf 'manual\n'
+		return
+	fi
+
+	config_get bedtime_start "$profile" bedtime_start ''
+	config_get bedtime_end "$profile" bedtime_end ''
+	now_hhmm=$(date +%H:%M)
+	if is_bedtime "$bedtime_start" "$bedtime_end" "$(time_minutes "$now_hhmm")"; then
+		printf 'bedtime\n'
+		return
+	fi
+
+	config_get daily_minutes "$profile" daily_minutes 0
+	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
+	used=$(get_used "$profile")
+	if [ "$daily_minutes" -gt 0 ] && [ "$used" -ge $((daily_minutes * 60)) ]; then
+		printf 'quota\n'
+		return
+	fi
+
+	printf 'none\n'
+}
+
+VALIDATE_ERRORS=0
+VALIDATE_SEEN=''
+
+validation_error() {
+	VALIDATE_ERRORS=$((VALIDATE_ERRORS + 1))
+	printf 'ERROR\t%s\n' "$*"
+}
+
+validate_device() {
+	device="$1"
+	profile="$2"
+	mac=$(normalize_mac "$device")
+	if ! valid_mac "$mac"; then
+		validation_error "profile $profile has invalid MAC address: $device"
+		return
+	fi
+	previous=$(awk -F '\t' -v mac="$mac" '$1 == mac { print $2; exit }' "$VALIDATE_SEEN")
+	if [ -n "$previous" ] && [ "$previous" != "$profile" ]; then
+		validation_error "MAC $mac is assigned to both $previous and $profile"
+	else
+		printf '%s\t%s\n' "$mac" "$profile" >> "$VALIDATE_SEEN"
+	fi
+}
+
+validate_profile() {
+	profile="$1"
+	config_get daily_minutes "$profile" daily_minutes 0
+	case "$daily_minutes" in
+		''|*[!0-9]*) validation_error "profile $profile has invalid daily_minutes" ;;
+	esac
+	config_get start "$profile" bedtime_start ''
+	config_get end "$profile" bedtime_end ''
+	if { [ -n "$start" ] || [ -n "$end" ]; } && { ! valid_time "$start" || ! valid_time "$end"; }; then
+		validation_error "profile $profile has an incomplete or invalid bedtime"
+	fi
+	config_list_foreach "$profile" device validate_device "$profile"
+}
+
+validate_config() {
+	config_load owrtpc
+	VALIDATE_ERRORS=0
+	VALIDATE_SEEN=$(mktemp "$STATE_DIR/validate.XXXXXX") || return 1
+	config_foreach validate_profile profile
+	rm -f "$VALIDATE_SEEN"
+	if [ "$VALIDATE_ERRORS" -eq 0 ]; then
+		printf 'OK\n'
+		return 0
+	fi
+	return 1
+}
+
+append_unique() {
+	line="$1"
+	file="$2"
+	grep -Fqx -- "$line" "$file" 2>/dev/null || printf '%s\n' "$line" >> "$file"
+}
+
+APPLY_SEEN=''
+APPLY_BLOCKS=''
+APPLY_COUNTERS=''
+
+apply_device() {
+	device="$1"
+	profile="$2"
+	reason="$3"
+	mac=$(normalize_mac "$device")
+	valid_mac "$mac" || return
+	previous=$(awk -F '\t' -v mac="$mac" '$1 == mac { print $2; exit }' "$APPLY_SEEN")
+	if [ -n "$previous" ] && [ "$previous" != "$profile" ]; then
+		while IFS= read -r output_device; do
+			[ -n "$output_device" ] || continue
+			append_unique "add rule inet owrtpc forward oifname \"$output_device\" ether saddr $mac drop comment \"owrtpc-duplicate:$mac\"" "$APPLY_BLOCKS"
+		done < "$APPLY_OUTPUT_DEVICES"
+		return
+	fi
+	printf '%s\t%s\n' "$mac" "$profile" >> "$APPLY_SEEN"
+	[ "$reason" != 'disabled' ] || return
+	while IFS= read -r output_device; do
+		[ -n "$output_device" ] || continue
+		match="oifname \"$output_device\" ether saddr $mac"
+		if [ "$reason" != 'none' ]; then
+			append_unique "add rule inet owrtpc forward $match drop comment \"owrtpc-block:$reason:$mac\"" "$APPLY_BLOCKS"
+		else
+			append_unique "add rule inet owrtpc forward $match counter comment \"owrtpc-device:$mac\"" "$APPLY_COUNTERS"
+		fi
+	done < "$APPLY_OUTPUT_DEVICES"
+}
+
+apply_profile() {
+	profile="$1"
+	reason=$(profile_reason "$profile")
+	config_list_foreach "$profile" device apply_device "$profile" "$reason"
+}
+
+resolve_output_network() {
+	network="$1"
+	case "$network" in ''|*[!A-Za-z0-9_\-]*) return ;; esac
+	device=$("$UBUS_BIN" -S call "network.interface.$network" status 2>/dev/null |
+		"$JSONFILTER_BIN" -e '@.l3_device' 2>/dev/null)
+	case "$device" in ''|*[!A-Za-z0-9_.:@\-]*) return ;; esac
+	append_unique "$device" "$APPLY_OUTPUT_DEVICES"
+}
+
+resolve_output_device() {
+	device="$1"
+	case "$device" in ''|*[!A-Za-z0-9_.:@\-]*) return ;; esac
+	append_unique "$device" "$APPLY_OUTPUT_DEVICES"
+}
+
+apply_policy() {
+	ensure_state
+	config_load owrtpc
+	config_get_bool engine_enabled main enabled 1
+
+	work_dir=$(mktemp -d "$STATE_DIR/apply.XXXXXX") || return 1
+	APPLY_SEEN="$work_dir/seen"
+	APPLY_BLOCKS="$work_dir/blocks"
+	APPLY_COUNTERS="$work_dir/counters"
+	APPLY_OUTPUT_DEVICES="$work_dir/output-devices"
+	: > "$APPLY_SEEN"
+	: > "$APPLY_BLOCKS"
+	: > "$APPLY_COUNTERS"
+	: > "$APPLY_OUTPUT_DEVICES"
+	config_list_foreach main monitored_network resolve_output_network
+	config_list_foreach main monitored_device resolve_output_device
+	if [ ! -s "$APPLY_OUTPUT_DEVICES" ]; then
+		log 'no monitored output network is currently available'
+	fi
+	[ "$engine_enabled" -eq 0 ] || config_foreach apply_profile profile
+
+	rules="$work_dir/rules.nft"
+	{
+		printf 'add table inet owrtpc\n'
+		printf 'add chain inet owrtpc forward { type filter hook forward priority -5; policy accept; }\n'
+		cat "$APPLY_BLOCKS"
+		cat "$APPLY_COUNTERS"
+	} > "$rules"
+
+	"$NFT_BIN" delete table inet owrtpc >/dev/null 2>&1 || true
+	if ! "$NFT_BIN" -f "$rules"; then
+		log 'failed to install nftables policy'
+		rm -rf "$work_dir"
+		return 1
+	fi
+	rm -rf "$work_dir"
+}
+
+COUNTERS_FILE=''
+SAMPLE_ELAPSED=0
+SAMPLE_THRESHOLD=1024
+
+counter_bytes() {
+	mac="$1"
+	awk -F '\t' -v mac="$mac" '$1 == mac { total += $2 } END { print total + 0 }' "$COUNTERS_FILE"
+}
+
+sample_device() {
+	device="$1"
+	profile="$2"
+	mac=$(normalize_mac "$device")
+	valid_mac "$mac" || return
+	bytes=$(counter_bytes "$mac")
+	case "$bytes" in ''|*[!0-9]*) bytes=0 ;; esac
+	if [ "$bytes" -ge "$SAMPLE_THRESHOLD" ]; then
+		current=$(get_used "$profile")
+		set_used "$profile" $((current + SAMPLE_ELAPSED))
+	fi
+}
+
+sample_profile() {
+	profile="$1"
+	config_get_bool profile_enabled "$profile" enabled 1
+	[ "$profile_enabled" -eq 1 ] || return
+	config_list_foreach "$profile" device sample_device "$profile"
+}
+
+read_counters() {
+	COUNTERS_FILE="$1"
+	: > "$COUNTERS_FILE"
+	"$NFT_BIN" list chain inet owrtpc forward 2>/dev/null |
+		sed -n 's/.*bytes \([0-9][0-9]*\).*comment "owrtpc-device:\([0-9A-Fa-f:]*\)".*/\2\t\1/p' |
+		tr '[:lower:]' '[:upper:]' > "$COUNTERS_FILE"
+}
+
+sample_usage() {
+	ensure_state
+	config_load owrtpc
+	config_get sample_interval main sample_interval 60
+	config_get SAMPLE_THRESHOLD main activity_threshold_bytes 1024
+	case "$sample_interval" in ''|*[!0-9]*|0) sample_interval=60 ;; esac
+	case "$SAMPLE_THRESHOLD" in ''|*[!0-9]*) SAMPLE_THRESHOLD=1024 ;; esac
+
+	now=$(date +%s)
+	last=0
+	[ -r "$STATE_DIR/last_sample" ] && last=$(sed -n '1p' "$STATE_DIR/last_sample")
+	case "$last" in ''|*[!0-9]*) last=0 ;; esac
+	if [ "$last" -eq 0 ]; then
+		SAMPLE_ELAPSED="$sample_interval"
+	else
+		SAMPLE_ELAPSED=$((now - last))
+		[ "$SAMPLE_ELAPSED" -gt 0 ] || SAMPLE_ELAPSED="$sample_interval"
+		max_elapsed=$((sample_interval * 2))
+		[ "$SAMPLE_ELAPSED" -le "$max_elapsed" ] || SAMPLE_ELAPSED="$max_elapsed"
+	fi
+
+	COUNTERS_FILE=$(mktemp "$STATE_DIR/counters.XXXXXX") || return 1
+	read_counters "$COUNTERS_FILE"
+	config_foreach sample_profile profile
+	rm -f "$COUNTERS_FILE"
+	printf '%s\n' "$now" > "$STATE_DIR/last_sample"
+
+	apply_policy || return 1
+	config_get checkpoint_interval main checkpoint_interval 900
+	case "$checkpoint_interval" in ''|*[!0-9]*|0) checkpoint_interval=900 ;; esac
+	last_checkpoint=0
+	[ -r "$STATE_DIR/last_checkpoint" ] && last_checkpoint=$(sed -n '1p' "$STATE_DIR/last_checkpoint")
+	case "$last_checkpoint" in ''|*[!0-9]*) last_checkpoint=0 ;; esac
+	[ $((now - last_checkpoint)) -lt "$checkpoint_interval" ] || checkpoint_state
+}
+
+status_profile() {
+	profile="$1"
+	config_get name "$profile" name "$profile"
+	config_get daily_minutes "$profile" daily_minutes 0
+	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
+	used=$(get_used "$profile")
+	limit=$((daily_minutes * 60))
+	remaining=0
+	[ "$limit" -eq 0 ] || {
+		remaining=$((limit - used))
+		[ "$remaining" -ge 0 ] || remaining=0
+	}
+	reason=$(profile_reason "$profile")
+	config_get_bool manual "$profile" blocked 0
+	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$profile" "$name" "$used" "$limit" "$remaining" "$reason" "$manual"
+}
+
+status_all() {
+	ensure_state
+	config_load owrtpc
+	printf 'section\tname\tused_seconds\tlimit_seconds\tremaining_seconds\treason\tmanual_blocked\n'
+	config_foreach status_profile profile
+}
+
+initialize() {
+	restore_state
+	ensure_state
+	date +%s > "$STATE_DIR/last_sample"
+	apply_policy
+}
+
+if [ "${OWRTPC_TEST_MODE:-0}" = '1' ]; then
+	return 0 2>/dev/null || exit 0
+fi
+
+acquire_lock() {
+	lock_dir="$STATE_DIR/lock"
+	attempt=0
+	while ! mkdir "$lock_dir" 2>/dev/null; do
+		attempt=$((attempt + 1))
+		[ "$attempt" -lt 30 ] || { log 'timed out waiting for policy lock'; return 1; }
+		sleep 1
+	done
+	trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT INT TERM
+}
+
+ensure_state
+acquire_lock || exit 1
+
+case "${1:-}" in
+	apply) apply_policy ;;
+	checkpoint) checkpoint_state ;;
+	init) initialize ;;
+	sample) sample_usage ;;
+	status) status_all ;;
+	validate) ensure_state; validate_config ;;
+	*)
+		echo "Usage: owrtpcctl {init|sample|apply|status|validate|checkpoint}" >&2
+		exit 2
+		;;
+esac
