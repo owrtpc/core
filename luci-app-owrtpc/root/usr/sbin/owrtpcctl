@@ -69,6 +69,28 @@ is_bedtime() {
 	fi
 }
 
+current_schedule() {
+	day_of_week="${OWRTPC_DAY_OF_WEEK:-$(date +%u)}"
+	case "$day_of_week" in
+		6|7) printf 'weekend\n' ;;
+		*) printf 'weekday\n' ;;
+	esac
+}
+
+profile_schedule_value() {
+	profile="$1"
+	schedule="$2"
+	option="$3"
+	legacy_option="$4"
+	default="$5"
+	value=''
+	config_get value "$profile" "${schedule}_${option}" ''
+	if [ -z "$value" ]; then
+		config_get value "$profile" "$legacy_option" "$default"
+	fi
+	printf '%s\n' "$value"
+}
+
 ensure_state() {
 	umask 077
 	mkdir -p "$STATE_DIR" "$PERSIST_DIR"
@@ -143,15 +165,16 @@ profile_reason() {
 		return
 	fi
 
-	config_get bedtime_start "$profile" bedtime_start ''
-	config_get bedtime_end "$profile" bedtime_end ''
-	now_hhmm=$(date +%H:%M)
+	schedule=$(current_schedule)
+	bedtime_start=$(profile_schedule_value "$profile" "$schedule" bedtime_start bedtime_start '')
+	bedtime_end=$(profile_schedule_value "$profile" "$schedule" bedtime_end bedtime_end '')
+	now_hhmm="${OWRTPC_NOW_HHMM:-$(date +%H:%M)}"
 	if is_bedtime "$bedtime_start" "$bedtime_end" "$(time_minutes "$now_hhmm")"; then
 		printf 'bedtime\n'
 		return
 	fi
 
-	config_get daily_minutes "$profile" daily_minutes 0
+	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
 	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
 	used=$(get_used "$profile")
 	if [ "$daily_minutes" -gt 0 ] && [ "$used" -ge $((daily_minutes * 60)) ]; then
@@ -188,15 +211,17 @@ validate_device() {
 
 validate_profile() {
 	profile="$1"
-	config_get daily_minutes "$profile" daily_minutes 0
-	case "$daily_minutes" in
-		''|*[!0-9]*) validation_error "profile $profile has invalid daily_minutes" ;;
-	esac
-	config_get start "$profile" bedtime_start ''
-	config_get end "$profile" bedtime_end ''
-	if { [ -n "$start" ] || [ -n "$end" ]; } && { ! valid_time "$start" || ! valid_time "$end"; }; then
-		validation_error "profile $profile has an incomplete or invalid bedtime"
-	fi
+	for schedule in weekday weekend; do
+		daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
+		case "$daily_minutes" in
+			''|*[!0-9]*) validation_error "profile $profile has invalid ${schedule}_daily_minutes" ;;
+		esac
+		start=$(profile_schedule_value "$profile" "$schedule" bedtime_start bedtime_start '')
+		end=$(profile_schedule_value "$profile" "$schedule" bedtime_end bedtime_end '')
+		if { [ -n "$start" ] || [ -n "$end" ]; } && { ! valid_time "$start" || ! valid_time "$end"; }; then
+			validation_error "profile $profile has an incomplete or invalid $schedule bedtime"
+		fi
+	done
 	config_list_foreach "$profile" device validate_device "$profile"
 }
 
@@ -385,7 +410,8 @@ sample_usage() {
 status_profile() {
 	profile="$1"
 	config_get name "$profile" name "$profile"
-	config_get daily_minutes "$profile" daily_minutes 0
+	schedule=$(current_schedule)
+	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
 	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
 	used=$(get_used "$profile")
 	limit=$((daily_minutes * 60))
@@ -396,13 +422,13 @@ status_profile() {
 	}
 	reason=$(profile_reason "$profile")
 	config_get_bool manual "$profile" blocked 0
-	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$profile" "$name" "$used" "$limit" "$remaining" "$reason" "$manual"
+	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$profile" "$name" "$used" "$limit" "$remaining" "$reason" "$manual" "$schedule"
 }
 
 status_all() {
 	ensure_state
 	config_load owrtpc
-	printf 'section\tname\tused_seconds\tlimit_seconds\tremaining_seconds\treason\tmanual_blocked\n'
+	printf 'section\tname\tused_seconds\tlimit_seconds\tremaining_seconds\treason\tmanual_blocked\tschedule\n'
 	config_foreach status_profile profile
 }
 

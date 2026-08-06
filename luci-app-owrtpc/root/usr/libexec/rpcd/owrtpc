@@ -33,7 +33,7 @@ rpc_status() {
 	tab=$(printf '\t')
 	{
 		IFS= read -r _header
-		while IFS="$tab" read -r section name used limit remaining reason manual; do
+		while IFS="$tab" read -r section name used limit remaining reason manual schedule; do
 			[ -n "$section" ] || continue
 			json_add_object ''
 			json_add_string section "$section"
@@ -43,6 +43,7 @@ rpc_status() {
 			json_add_int remaining_seconds "${remaining:-0}"
 			json_add_string reason "${reason:-none}"
 			json_add_boolean manual_blocked "${manual:-0}"
+			json_add_string schedule "${schedule:-weekday}"
 			case "$reason" in none|disabled) json_add_boolean blocked 0 ;; *) json_add_boolean blocked 1 ;; esac
 			json_close_object
 		done

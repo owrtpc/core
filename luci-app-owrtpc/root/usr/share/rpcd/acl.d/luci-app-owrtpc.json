@@ -4,9 +4,9 @@
 		"read": {
 			"ubus": {
 				"owrtpc": [ "status", "validate" ],
-				"luci-rpc": [ "getDHCPLeases" ]
+				"luci-rpc": [ "getDHCPLeases", "getHostHints" ]
 			},
-			"uci": [ "firewall", "owrtpc" ]
+			"uci": [ "firewall", "gl-client", "owrtpc" ]
 		},
 		"write": {
 			"ubus": {

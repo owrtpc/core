@@ -8,14 +8,15 @@ The first milestone supports:
 
 - independent profiles;
 - multiple devices per profile, with one profile at most per device;
-- a daily profile allowance shared cumulatively by all its devices;
-- a daily bedtime window, including windows crossing midnight;
+- weekday and weekend profile allowances shared cumulatively by all devices;
+- separate weekday and weekend bedtime windows, including midnight crossing;
 - an immediate manual block/unblock action;
 - lightweight usage accounting with periodic, configurable flash checkpoints.
 
 ## Daily allowance semantics
 
-Allowances are stored in minutes per profile. Usage is measured in
+Allowances are stored in minutes per profile, separately for Monday-Friday and
+Saturday-Sunday. Usage is measured in
 **device-minutes**. If two devices assigned to the same profile are active for
 30 minutes at the same time, that profile consumes 60 minutes. Usage belonging
 to another profile is accounted independently.
@@ -24,6 +25,10 @@ A device is considered active during a sampling interval when it transfers at
 least `activity_threshold_bytes` bytes. This prevents background noise from
 consuming the allowance. Both the threshold and sampling interval are
 configurable.
+
+The router's local calendar selects the weekday or weekend schedule. Usage
+still resets at each local calendar-day boundary, so each day receives the
+allowance configured for its schedule.
 
 ## Repository layout
 

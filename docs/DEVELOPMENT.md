@@ -17,6 +17,35 @@ OpenWrt 25.12 uses `apk`; install a locally copied package with:
 apk add --allow-untrusted /tmp/luci-app-owrtpc-*.apk
 ```
 
+## Signed development APKs
+
+The release public key is tracked at `keys/owrtpc-release.pem`. The private key
+must never be committed and defaults to:
+
+```text
+~/.config/owrtpc/signing/private-key.pem
+```
+
+With the documented Docker SDK volume and builder image available, build and
+individually sign the package with:
+
+```sh
+./scripts/build-signed-apk.sh
+```
+
+Override the private-key location with `OWRTPC_SIGNING_KEY`. To trust OWRTPC
+artifacts on a development router, copy the public key once:
+
+```sh
+scp -O keys/owrtpc-release.pem root@ROUTER:/tmp/owrtpc-release.pem
+ssh root@ROUTER 'cp /tmp/owrtpc-release.pem /etc/apk/keys/owrtpc-release.pem && chmod 0644 /etc/apk/keys/owrtpc-release.pem'
+```
+
+After that, APKs produced by the signed-build script can be uploaded through
+**System > Software** in LuCI without `--allow-untrusted`. Back up the private
+key in a secure location; losing it requires distributing and trusting a new
+public key.
+
 After installation, open **Services > Parental Control** in LuCI.
 
 ## Local checks

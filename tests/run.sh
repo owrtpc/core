@@ -72,6 +72,34 @@ config_get() {
 }
 assert_eq quota "$(profile_reason children)" 'profile blocks when cumulative quota is exhausted'
 
+set_used children 180
+config_get() {
+	variable="$1"; section="$2"; option="$3"; default="$4"
+	case "$option" in
+		weekday_daily_minutes) value=2 ;;
+		weekend_daily_minutes) value=4 ;;
+		weekday_bedtime_start) value='21:30' ;;
+		weekday_bedtime_end) value='07:00' ;;
+		weekend_bedtime_start) value='23:00' ;;
+		weekend_bedtime_end) value='09:00' ;;
+		daily_minutes) value=0 ;;
+		bedtime_start|bedtime_end) value='' ;;
+		*) value="$default" ;;
+	esac
+	eval "$variable=\$value"
+}
+export OWRTPC_NOW_HHMM=22:00
+export OWRTPC_DAY_OF_WEEK=1
+assert_eq weekday "$(current_schedule)" 'Monday selects the weekday schedule'
+assert_eq bedtime "$(profile_reason children)" 'weekday bedtime uses weekday hours'
+export OWRTPC_DAY_OF_WEEK=6
+assert_eq weekend "$(current_schedule)" 'Saturday selects the weekend schedule'
+assert_eq none "$(profile_reason children)" 'weekend uses its own quota and bedtime'
+export OWRTPC_NOW_HHMM=23:30
+assert_eq bedtime "$(profile_reason children)" 'weekend bedtime uses weekend hours'
+unset OWRTPC_NOW_HHMM OWRTPC_DAY_OF_WEEK
+set_used children 120
+
 config_get_bool() {
 	variable="$1"; section="$2"; option="$3"; default="$4"
 	case "$option:$section" in
@@ -118,3 +146,9 @@ assert_eq 4 "$wan_rule_count" 'rules are limited to the monitored Internet devic
 
 printf '%s passed, %s failed\n' "$passed" "$failed"
 [ "$failed" -eq 0 ]
+
+if command -v node >/dev/null 2>&1; then
+	node "$PROJECT_DIR/tests/devices.test.js"
+else
+	printf 'skip - device autocomplete tests require Node.js\n'
+fi

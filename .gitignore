@@ -22,3 +22,7 @@ rootfs/
 build/
 dist/
 tmp/
+
+# Signing secrets (public keys under keys/ are intentionally tracked)
+**/private-key.pem
+keys/*.key

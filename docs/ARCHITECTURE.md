@@ -26,9 +26,16 @@ contains:
 - `name`: display name;
 - `enabled`: whether the policy is enforced and accounted;
 - `blocked`: explicit quick-block state;
-- `daily_minutes`: independent daily allowance; `0` means unlimited;
-- `bedtime_start`, `bedtime_end`: local `HH:MM` values; empty means disabled;
+- `weekday_daily_minutes`, `weekend_daily_minutes`: independent daily
+  allowances; `0` means unlimited;
+- `weekday_bedtime_start`, `weekday_bedtime_end` and their `weekend_*`
+  counterparts: local `HH:MM` values; an empty pair means disabled;
 - one or more `list device` values containing canonical MAC addresses.
+
+For upgrade compatibility, the engine uses the legacy `daily_minutes`,
+`bedtime_start` and `bedtime_end` values when a corresponding schedule-specific
+option is absent. Saving the profile in the current LuCI UI writes the new
+options.
 
 The same normalized MAC address must not occur in two profiles. The UI and
 backend both validate this invariant. If malformed configuration is written
@@ -57,7 +64,7 @@ blocked when at least one of these applies:
 
 - manual `blocked` flag;
 - current local time is in its bedtime window;
-- `used_seconds >= daily_minutes * 60`.
+- `used_seconds >= current_schedule_daily_minutes * 60`.
 
 Only traffic leaving through the L3 devices resolved from `monitored_network`
 (by default `wan` and `wan6`) is counted and blocked. Local LAN traffic remains
