@@ -43,18 +43,86 @@ is_bedtime 21:30 07:00 "$(time_minutes 12:00)" && bedtime_noon=yes || bedtime_no
 assert_eq no "$bedtime_noon" 'bedtime crossing midnight: daytime allowed'
 
 COUNTERS_FILE="$TEST_ROOT/counters"
-cat > "$COUNTERS_FILE" <<'COUNTERS'
-AA:BB:CC:DD:EE:01	4096
-AA:BB:CC:DD:EE:02	2048
-AA:BB:CC:DD:EE:03	100
-COUNTERS
-SAMPLE_THRESHOLD=1024
+write_counters() {
+	printf '%s\t%s\n' 'AA:BB:CC:DD:EE:01' "$1" > "$COUNTERS_FILE"
+}
+SAMPLE_THRESHOLD=131072
+SAMPLE_PROFILE_THRESHOLD="$SAMPLE_THRESHOLD"
 SAMPLE_ELAPSED=60
+SAMPLE_NOW=1000
+ACTIVITY_CONFIRM_WINDOW=300
+ACTIVITY_IDLE_TIMEOUT=180
+
+write_counters 262144
 sample_device AA:BB:CC:DD:EE:01 children
-sample_device AA:BB:CC:DD:EE:02 children
-sample_device AA:BB:CC:DD:EE:03 children
-assert_eq 120 "$(get_used children)" 'two active devices add two device-minutes to one profile'
-assert_eq 0 "$(get_used another_profile)" 'other profiles remain independent'
+assert_eq 0 "$(get_used children)" 'the first traffic burst is only a session candidate'
+SAMPLE_NOW=1060
+sample_device AA:BB:CC:DD:EE:01 children
+assert_eq 120 "$(get_used children)" 'a second burst confirms and retroactively counts the session'
+
+write_counters 0
+SAMPLE_NOW=1120
+sample_device AA:BB:CC:DD:EE:01 children
+assert_eq 120 "$(get_used children)" 'a buffering gap remains provisional'
+write_counters 262144
+SAMPLE_NOW=1180
+sample_device AA:BB:CC:DD:EE:01 children
+assert_eq 240 "$(get_used children)" 'traffic resuming inside the grace period confirms the buffering gap'
+
+write_counters 0
+SAMPLE_NOW=1240
+sample_device AA:BB:CC:DD:EE:01 children
+SAMPLE_NOW=1300
+sample_device AA:BB:CC:DD:EE:01 children
+SAMPLE_NOW=1360
+sample_device AA:BB:CC:DD:EE:01 children
+assert_eq 240 "$(get_used children)" 'the silent tail is discarded when the active session expires'
+assert_eq 0 "$(activity_read AA:BB:CC:DD:EE:01 active)" 'the device returns to idle after the grace period'
+
+write_counters 262144
+SAMPLE_NOW=1420
+sample_device AA:BB:CC:DD:EE:01 isolated_profile
+write_counters 0
+SAMPLE_NOW=1720
+sample_device AA:BB:CC:DD:EE:01 isolated_profile
+assert_eq 0 "$(get_used isolated_profile)" 'an isolated heavy background burst never consumes time'
+
+clear_device_activity AA:BB:CC:DD:EE:01
+write_counters 262144
+TEST_DAILY_MINUTES=0
+config_get_bool() {
+	variable="$1"; option="$3"
+	case "$option" in
+		enabled) value=1 ;;
+		blocked) value=0 ;;
+		*) value=0 ;;
+	esac
+	eval "$variable=\$value"
+}
+config_get() {
+	variable="$1"; option="$3"; default="$4"
+	case "$option" in
+		weekday_daily_minutes|weekend_daily_minutes|daily_minutes) value="$TEST_DAILY_MINUTES" ;;
+		bedtime_start|bedtime_end|weekday_bedtime_start|weekday_bedtime_end|weekend_bedtime_start|weekend_bedtime_end) value='' ;;
+		activity_threshold_bytes) value="$default" ;;
+		*) value="$default" ;;
+	esac
+	eval "$variable=\$value"
+}
+config_list_foreach() {
+	section="$1"; option="$2"; callback="$3"; extra="${4:-}"
+	[ "$option" = 'device' ] && "$callback" AA:BB:CC:DD:EE:01 "$extra"
+}
+SAMPLE_NOW=2000
+sample_profile unlimited_profile
+assert_eq 0 "$(activity_read AA:BB:CC:DD:EE:01 candidate_started)" 'unlimited profiles skip session calculations entirely'
+TEST_DAILY_MINUTES=120
+sample_profile limited_profile
+assert_eq 2000 "$(activity_read AA:BB:CC:DD:EE:01 candidate_started)" 'limited profiles enable automatic session detection'
+clear_device_activity AA:BB:CC:DD:EE:01
+config_get() { :; }
+config_get_bool() { :; }
+config_list_foreach() { :; }
 
 config_get_bool() {
 	variable="$1"; section="$2"; option="$3"; default="$4"
@@ -96,7 +164,49 @@ export OWRTPC_DAY_OF_WEEK=6
 assert_eq weekend "$(current_schedule)" 'Saturday selects the weekend schedule'
 assert_eq none "$(profile_reason children)" 'weekend uses its own quota and bedtime'
 export OWRTPC_NOW_HHMM=23:30
-assert_eq bedtime "$(profile_reason children)" 'weekend bedtime uses weekend hours'
+set_bonus children 3600
+set_all_day children
+checkpoint_state
+assert_eq bedtime "$(profile_reason children)" 'weekend bedtime keeps priority over extra time'
+assert_eq 0 "$(get_bonus children)" 'bedtime discards unused extra time'
+assert_eq 0 "$(get_all_day children)" 'bedtime ends All Day mode'
+restore_state
+assert_eq 0 "$(get_bonus children)" 'discarded bedtime credit cannot return after restart'
+assert_eq 0 "$(get_all_day children)" 'discarded All Day mode cannot return after restart'
+
+export OWRTPC_NOW_HHMM=12:00
+export OWRTPC_DAY_OF_WEEK=1
+set_used children 180
+set_bonus children 3600
+assert_eq none "$(profile_reason children)" 'extra time reopens a profile with exhausted base allowance'
+set_used children 3720
+assert_eq quota "$(profile_reason children)" 'profile blocks after base allowance and extra time are exhausted'
+set_all_day children
+assert_eq none "$(profile_reason children)" 'All Day overrides an exhausted quota'
+replace_time_credit children 14400
+replace_time_credit children 3600
+assert_eq 3600 "$(get_bonus children)" 'the latest numeric quick action replaces the previous credit'
+assert_eq 0 "$(get_all_day children)" 'a numeric quick action disables All Day'
+replace_time_credit children all-day
+assert_eq 0 "$(get_bonus children)" 'All Day replaces a numeric credit'
+assert_eq 1 "$(get_all_day children)" 'All Day is enabled by the replacement action'
+clear_all_day children
+
+set_used children 180
+set_bonus children 14400
+checkpoint_state
+clear_bonus children
+restore_state
+assert_eq 14400 "$(get_bonus children)" 'extra time survives a same-day service restart'
+set_all_day children
+checkpoint_state
+clear_all_day children
+restore_state
+assert_eq 1 "$(get_all_day children)" 'All Day survives a same-day service restart'
+printf '1900-01-01\n' > "$OWRTPC_STATE_DIR/date"
+ensure_state
+assert_eq 0 "$(get_bonus children)" 'extra time never carries into the next day'
+assert_eq 0 "$(get_all_day children)" 'All Day never carries into the next day'
 unset OWRTPC_NOW_HHMM OWRTPC_DAY_OF_WEEK
 set_used children 120
 

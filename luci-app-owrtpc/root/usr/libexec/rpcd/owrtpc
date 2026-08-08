@@ -33,7 +33,7 @@ rpc_status() {
 	tab=$(printf '\t')
 	{
 		IFS= read -r _header
-		while IFS="$tab" read -r section name used limit remaining reason manual schedule; do
+		while IFS="$tab" read -r section name used limit remaining reason manual schedule bonus all_day; do
 			[ -n "$section" ] || continue
 			json_add_object ''
 			json_add_string section "$section"
@@ -44,6 +44,8 @@ rpc_status() {
 			json_add_string reason "${reason:-none}"
 			json_add_boolean manual_blocked "${manual:-0}"
 			json_add_string schedule "${schedule:-weekday}"
+			json_add_int bonus_seconds "${bonus:-0}"
+			json_add_boolean all_day "${all_day:-0}"
 			case "$reason" in none|disabled) json_add_boolean blocked 0 ;; *) json_add_boolean blocked 1 ;; esac
 			json_close_object
 		done
@@ -71,6 +73,37 @@ rpc_set_block() {
 	else
 		rpc_error 'Policy refresh failed'
 	fi
+}
+
+rpc_add_time() {
+	json_load "$1" || { rpc_error 'Invalid JSON request'; return; }
+	json_get_var profile profile
+	json_get_var minutes minutes
+	safe_profile "$profile" || { rpc_error 'Unknown profile'; return; }
+	case "$minutes" in
+		60) seconds=3600 ;;
+		240) seconds=14400 ;;
+		all-day) seconds=all-day ;;
+		*) rpc_error 'Unsupported time increment'; return ;;
+	esac
+	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
+	"$OWRTPCCTL" add-time "$profile" "$seconds"
+	result=$?
+	case "$result" in
+		0)
+			json_init
+			json_add_boolean success 1
+			if [ "$seconds" = 'all-day' ]; then
+				json_add_boolean all_day 1
+			else
+				json_add_int added_seconds "$seconds"
+			fi
+			json_dump
+			;;
+		2) rpc_error 'Bedtime is active; extra time was not added' ;;
+		3) rpc_error 'This profile already has unlimited time' ;;
+		*) rpc_error 'Unable to add extra time' ;;
+	esac
 }
 
 rpc_refresh() {
@@ -104,6 +137,10 @@ case "$1" in
 		json_add_string profile String
 		json_add_string blocked Boolean
 		json_close_object
+		json_add_object add_time
+		json_add_string profile String
+		json_add_string minutes Int32
+		json_close_object
 		json_add_object refresh; json_close_object
 		json_add_object validate; json_close_object
 		json_dump
@@ -113,6 +150,7 @@ case "$1" in
 		case "$2" in
 			status) rpc_status ;;
 			set_block) rpc_set_block "$request" ;;
+			add_time) rpc_add_time "$request" ;;
 			refresh) rpc_refresh ;;
 			validate) rpc_validate ;;
 			*) rpc_error 'Unknown method' ;;

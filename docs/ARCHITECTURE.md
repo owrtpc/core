@@ -30,7 +30,9 @@ contains:
   allowances; `0` means unlimited;
 - `weekday_bedtime_start`, `weekday_bedtime_end` and their `weekend_*`
   counterparts: local `HH:MM` values; an empty pair means disabled;
-- one or more `list device` values containing canonical MAC addresses.
+- one or more `list device` values containing canonical MAC addresses;
+- optional `activity_threshold_bytes`, overriding the global activity threshold
+  for profiles containing unusually quiet devices.
 
 For upgrade compatibility, the engine uses the legacy `daily_minutes`,
 `bedtime_start` and `bedtime_end` values when a corresponding schedule-specific
@@ -45,15 +47,24 @@ blocking the duplicated MAC and reports a validation error.
 ## Accounting
 
 At every sample, the engine reads the byte counters accumulated by each device
-in the OWRTPC nftables table. An enabled device whose counter reached the
-activity threshold adds the elapsed interval to its profile. Thus usage is the
-sum of active time across all devices in that profile.
+in the OWRTPC nftables table. Session detection runs only for enabled profiles
+whose current weekday or weekend allowance is finite. A first interval reaching
+the profile threshold (or the global 128 KiB default) creates a candidate; a
+second event within five minutes confirms the session and accounts the pending
+elapsed time. While active, quiet intervals remain provisional for three
+minutes and are committed only if traffic resumes, which tolerates buffering
+without charging the final idle tail. Unlimited profiles clear and skip all
+per-device activity state. Activity remains a traffic-volume heuristic because
+a router cannot observe a generic device's physical power or display state.
 
-Runtime state lives in `/tmp/owrtpc`. It is checkpointed to
-`/etc/owrtpc/state` at a configurable interval (15 minutes by default), trading
-at most one checkpoint interval of usage after sudden power loss for lower
-flash wear. A calendar-day change resets usage. All dates and bedtime rules use
-the router's configured local timezone.
+Runtime usage and same-day extra-time credit live in `/tmp/owrtpc`. They are
+checkpointed to `/etc/owrtpc/state` at a configurable interval (15 minutes by
+default), trading at most one checkpoint interval of usage after sudden power
+loss for lower flash wear. Extra credit increases only the current day's effective limit. All Day makes
+that limit temporarily unlimited. Both modes are deleted when the active
+bedtime window begins and at the next local calendar-day boundary, so neither
+can carry into another allowance.
+All dates and bedtime rules use the router's configured local timezone.
 
 ## Enforcement
 

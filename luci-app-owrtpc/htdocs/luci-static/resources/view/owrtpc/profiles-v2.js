@@ -8,6 +8,7 @@
 
 var callStatus = rpc.declare({ object: 'owrtpc', method: 'status', expect: { '': {} } });
 var callSetBlock = rpc.declare({ object: 'owrtpc', method: 'set_block', params: [ 'profile', 'blocked' ], expect: { '': {} } });
+var callAddTime = rpc.declare({ object: 'owrtpc', method: 'add_time', params: [ 'profile', 'minutes' ], expect: { '': {} } });
 var callRefresh = rpc.declare({ object: 'owrtpc', method: 'refresh', expect: { '': {} } });
 var callDHCPLeases = rpc.declare({ object: 'luci-rpc', method: 'getDHCPLeases', expect: { '': {} } });
 var callHostHints = rpc.declare({ object: 'luci-rpc', method: 'getHostHints', expect: { '': {} } });
@@ -109,6 +110,39 @@ function validateTime(value, example) {
 		_('Use HH:MM, for example %s.').format(example);
 }
 
+function reloadWithNotification(message) {
+	try {
+		window.sessionStorage.setItem('owrtpc-notification', message);
+	}
+	catch (error) {
+		ui.addNotification(null, E('p', {}, message), 'info');
+	}
+	window.location.reload();
+}
+
+function showQueuedNotification() {
+	var message = null;
+	try {
+		message = window.sessionStorage.getItem('owrtpc-notification');
+		window.sessionStorage.removeItem('owrtpc-notification');
+	}
+	catch (error) {}
+	if (message)
+		ui.addNotification(null, E('p', {}, message), 'info');
+}
+
+function runQuickAction(button, request, successMessage) {
+	button.disabled = true;
+	return request.then(function(result) {
+		if (!result.success)
+			throw new Error(result.error || _('The quick action failed.'));
+		reloadWithNotification(successMessage);
+	}).catch(function(error) {
+		button.disabled = false;
+		ui.addNotification(null, E('p', {}, error.message), 'error');
+	});
+}
+
 return view.extend({
 	load: function() {
 		return Promise.all([
@@ -120,6 +154,7 @@ return view.extend({
 	},
 
 	render: function(data) {
+		window.setTimeout(showQueuedNotification, 0);
 		var status = {};
 		(data[2].profiles || []).forEach(function(profile) { status[profile.section] = profile; });
 		var leases = (data[3].dhcp_leases || []).concat(data[3].dhcp6_leases || []);
@@ -154,11 +189,11 @@ return view.extend({
 		o.datatype = 'range(15,300)';
 		o.default = '60';
 		o.rmempty = false;
-		o = g.option(form.Value, 'activity_threshold_bytes', _('Activity threshold (bytes)'));
-		o.datatype = 'uinteger';
-		o.default = '1024';
+		o = g.option(form.Value, 'activity_threshold_bytes', _('Activity threshold per sample (bytes)'));
+		o.datatype = 'range(1,4294967295)';
+		o.default = '131072';
 		o.rmempty = false;
-		o.description = _('A device consumes an interval only after transferring at least this many bytes.');
+		o.description = _('Traffic below this threshold is treated as standby activity. The default is 128 KiB per sample.');
 		o = g.option(form.Value, 'checkpoint_interval', _('State checkpoint (seconds)'));
 		o.datatype = 'range(300,86400)';
 		o.default = '900';
@@ -191,6 +226,27 @@ return view.extend({
 			o.value(device.mac, deviceLabel(device));
 		});
 		bindDeviceAutocomplete(o, deviceMap, assignments);
+		o.textvalue = function(sectionId) {
+			var values = uci.get('owrtpc', sectionId, 'device') || [];
+			if (!Array.isArray(values))
+				values = [ values ];
+			var rows = values.filter(Boolean).map(function(value) {
+				var mac = canonicalMac(value);
+				var device = deviceMap[mac];
+				var name = device && (device.name || device.hostnames[0]);
+				return E('div', {}, name ? name + ' — ' + mac : mac);
+			});
+			return rows.length ? E('div', {}, rows) : E('em', {}, _('none'));
+		};
+
+		o = s.option(form.ListValue, 'activity_threshold_bytes', _('Activity detection'));
+		o.value('', _('Use engine default'));
+		o.value('32768', _('Sensitive (32 KiB/sample)'));
+		o.value('131072', _('Standard (128 KiB/sample)'));
+		o.value('262144', _('Low sensitivity (256 KiB/sample)'));
+		o.rmempty = true;
+		o.modalonly = true;
+		o.description = _('Advanced fallback for unusually noisy or quiet profiles. Automatic session detection normally handles standby traffic and buffering gaps.');
 
 		o = s.option(form.DummyValue, '_schedule', _('Today'));
 		o.cfgvalue = function(sectionId) {
@@ -200,7 +256,12 @@ return view.extend({
 		o.cfgvalue = function(sectionId) {
 			var schedule = status[sectionId] ? status[sectionId].schedule : 'weekday';
 			var minutes = Number(scheduleValue(sectionId, schedule, 'daily_minutes', 'daily_minutes', '0')) || 0;
-			return minutes ? _('%d min').format(minutes) : _('Unlimited');
+			var profileStatus = status[sectionId] || {};
+			if (profileStatus.all_day === true)
+				return _('Unlimited today');
+			var label = minutes ? _('%d min').format(minutes) : _('Unlimited');
+			var bonus = Number(profileStatus.bonus_seconds) || 0;
+			return bonus ? _('%s (+%s extra)').format(label, formatDuration(bonus)) : label;
 		};
 		o = s.option(form.DummyValue, '_bedtime', _('Today\'s bedtime'));
 		o.cfgvalue = function(sectionId) {
@@ -263,27 +324,48 @@ return view.extend({
 		s.renderRowActions = function(sectionId) {
 			var actions = form.GridSection.prototype.renderRowActions.call(gridSection, sectionId, _('Edit'));
 			var profile = status[sectionId] || {};
+			var profileName = profile.name || uci.get('owrtpc', sectionId, 'name') || sectionId;
 			var isBlocked = profile.manual_blocked === true;
-			var quickButton = E('button', {
+			var timeActionsDisabled = [ 'disabled', 'manual', 'bedtime' ].indexOf(profile.reason) !== -1;
+			var disabledTitle = profile.reason === 'bedtime' ? _('Extra time is unavailable during bedtime') :
+				profile.reason === 'manual' ? _('Unblock the profile before adding extra time') :
+				_('Enable the profile before adding extra time');
+			var buttons = [
+				[ 60, '+1h' ],
+				[ 240, '+4h' ],
+				[ 'all-day', 'All Day' ]
+			].map(function(increment) {
+				var isAllDay = increment[0] === 'all-day';
+				var title = timeActionsDisabled ? disabledTitle : isAllDay ?
+					_('Allow unlimited time until bedtime or the end of today') :
+					_('Set today\'s extra time to %s').format(increment[1].substring(1));
+				return E('button', {
+					'class': 'cbi-button cbi-button-action',
+					'disabled': timeActionsDisabled ? '' : null,
+					'title': title,
+					'click': function(event) {
+						event.preventDefault();
+						var successMessage = isAllDay ?
+							_('Profile "%s" has unlimited time until bedtime or the end of today.').format(profileName) :
+							_('Extra time for profile "%s" set to %s.').format(profileName, increment[1].substring(1));
+						return runQuickAction(event.currentTarget, callAddTime(sectionId, increment[0]), successMessage);
+					}
+				}, increment[1]);
+			});
+			buttons.push(E('button', {
 				'class': 'cbi-button cbi-button-%s'.format(isBlocked ? 'positive' : 'negative'),
 				'title': isBlocked ? _('Remove the manual block') : _('Block this profile immediately'),
 				'click': function(event) {
 					event.preventDefault();
-					event.currentTarget.disabled = true;
-					return callSetBlock(sectionId, !isBlocked).then(function(result) {
-						if (!result.success)
-							throw new Error(result.error || _('The quick action failed.'));
-						window.location.reload();
-					}).catch(function(error) {
-						event.currentTarget.disabled = false;
-						ui.addNotification(null, E('p', {}, error.message), 'error');
-					});
+					return runQuickAction(event.currentTarget, callSetBlock(sectionId, !isBlocked),
+						isBlocked ? _('Profile "%s" unblocked.').format(profileName) : _('Profile "%s" blocked.').format(profileName));
 				}
-			}, isBlocked ? _('Unblock') : _('Block'));
+			}, isBlocked ? _('Unblock') : _('Block')));
 			var container = actions.querySelector('div');
 			if (container) {
 				var dragHandle = container.querySelector('.drag-handle');
-				container.insertBefore(quickButton, dragHandle ? dragHandle.nextSibling : container.firstChild);
+				var reference = dragHandle ? dragHandle.nextSibling : container.firstChild;
+				buttons.forEach(function(button) { container.insertBefore(button, reference); });
 			}
 			return actions;
 		};

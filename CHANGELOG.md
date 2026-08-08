@@ -26,3 +26,11 @@ project intends to follow [Semantic Versioning](https://semver.org/).
   are hidden.
 - Optional GL.iNet client aliases from `/etc/config/gl-client`, with graceful
   fallback to standard OpenWrt host hints and DHCP leases.
+- Mutually exclusive same-day +1h, +4h and All Day actions: the most recent choice replaces the previous one and is discarded at bedtime or day rollover.
+- Profile rows show friendly device names before MAC addresses when a name is available.
+- Native LuCI notifications for successful and failed profile quick actions.
+- Automatic burst-aware activity sessions for time-limited profiles, including
+  candidate confirmation, buffering-gap tolerance and discarded idle tails.
+  Unlimited profiles skip session calculations entirely.
+- A 128 KiB default activity threshold with automatic migration from the former
+  1 KiB default and optional per-profile sensitivity presets.

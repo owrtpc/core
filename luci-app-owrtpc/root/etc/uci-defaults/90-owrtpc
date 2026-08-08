@@ -9,5 +9,14 @@ if ! uci -q show firewall | grep -q "path='/usr/share/owrtpc/firewall.include'";
 	uci commit firewall
 fi
 
+# Releases up to r11 used 1 KiB per sample, which treats normal standby
+# telemetry as screen time. Migrate only the old shipped default so explicit
+# administrator choices remain untouched.
+activity_threshold=$(uci -q get owrtpc.main.activity_threshold_bytes)
+if [ -z "$activity_threshold" ] || [ "$activity_threshold" = '1024' ]; then
+	uci set owrtpc.main.activity_threshold_bytes='131072'
+	uci commit owrtpc
+fi
+
 /etc/init.d/owrtpc enable
 exit 0

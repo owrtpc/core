@@ -99,7 +99,7 @@ ensure_state() {
 	[ -r "$STATE_DIR/date" ] && state_date=$(sed -n '1p' "$STATE_DIR/date")
 
 	if [ "$state_date" != "$today" ]; then
-		for state_file in "$STATE_DIR"/profile-*.used; do
+		for state_file in "$STATE_DIR"/profile-*.used "$STATE_DIR"/profile-*.bonus "$STATE_DIR"/profile-*.all_day "$STATE_DIR"/device-*.activity-*; do
 			[ -e "$state_file" ] && rm -f "$state_file"
 		done
 		printf '%s\n' "$today" > "$STATE_DIR/date"
@@ -114,7 +114,7 @@ restore_state() {
 	[ -r "$PERSIST_DIR/date" ] && persist_date=$(sed -n '1p' "$PERSIST_DIR/date")
 	[ "$persist_date" = "$today" ] || return 0
 
-	for state_file in "$PERSIST_DIR"/profile-*.used; do
+	for state_file in "$PERSIST_DIR"/profile-*.used "$PERSIST_DIR"/profile-*.bonus "$PERSIST_DIR"/profile-*.all_day; do
 		[ -e "$state_file" ] || continue
 		cp "$state_file" "$STATE_DIR/$(basename "$state_file")"
 	done
@@ -125,10 +125,10 @@ checkpoint_state() {
 	today=$(date +%F)
 	printf '%s\n' "$today" > "$PERSIST_DIR/date.tmp"
 	mv "$PERSIST_DIR/date.tmp" "$PERSIST_DIR/date"
-	for old_file in "$PERSIST_DIR"/profile-*.used; do
+	for old_file in "$PERSIST_DIR"/profile-*.used "$PERSIST_DIR"/profile-*.bonus "$PERSIST_DIR"/profile-*.all_day; do
 		[ -e "$old_file" ] && rm -f "$old_file"
 	done
-	for state_file in "$STATE_DIR"/profile-*.used; do
+	for state_file in "$STATE_DIR"/profile-*.used "$STATE_DIR"/profile-*.bonus "$STATE_DIR"/profile-*.all_day; do
 		[ -e "$state_file" ] || continue
 		base=$(basename "$state_file")
 		cp "$state_file" "$PERSIST_DIR/$base.tmp"
@@ -154,8 +154,89 @@ set_used() {
 	mv "$STATE_DIR/profile-$profile.used.tmp" "$STATE_DIR/profile-$profile.used"
 }
 
+get_bonus() {
+	profile="$1"
+	safe_id "$profile" || { printf '0\n'; return; }
+	bonus=0
+	[ -r "$STATE_DIR/profile-$profile.bonus" ] && bonus=$(sed -n '1p' "$STATE_DIR/profile-$profile.bonus")
+	case "$bonus" in ''|*[!0-9]*) bonus=0 ;; esac
+	printf '%s\n' "$bonus"
+}
+
+set_bonus() {
+	profile="$1"
+	bonus="$2"
+	safe_id "$profile" || return 1
+	printf '%s\n' "$bonus" > "$STATE_DIR/profile-$profile.bonus.tmp"
+	mv "$STATE_DIR/profile-$profile.bonus.tmp" "$STATE_DIR/profile-$profile.bonus"
+}
+
+clear_bonus() {
+	profile="$1"
+	safe_id "$profile" || return 1
+	rm -f "$STATE_DIR/profile-$profile.bonus"
+}
+
+get_all_day() {
+	profile="$1"
+	safe_id "$profile" || { printf '0\n'; return; }
+	all_day=0
+	[ -r "$STATE_DIR/profile-$profile.all_day" ] && all_day=$(sed -n '1p' "$STATE_DIR/profile-$profile.all_day")
+	[ "$all_day" = '1' ] || all_day=0
+	printf '%s\n' "$all_day"
+}
+
+set_all_day() {
+	profile="$1"
+	safe_id "$profile" || return 1
+	printf '1\n' > "$STATE_DIR/profile-$profile.all_day.tmp"
+	mv "$STATE_DIR/profile-$profile.all_day.tmp" "$STATE_DIR/profile-$profile.all_day"
+}
+
+clear_all_day() {
+	profile="$1"
+	safe_id "$profile" || return 1
+	rm -f "$STATE_DIR/profile-$profile.all_day"
+}
+
+discard_time_credit() {
+	profile="$1"
+	safe_id "$profile" || return 1
+	clear_bonus "$profile"
+	clear_all_day "$profile"
+	rm -f "$PERSIST_DIR/profile-$profile.bonus" "$PERSIST_DIR/profile-$profile.all_day"
+}
+
+replace_time_credit() {
+	profile="$1"
+	seconds="$2"
+	safe_id "$profile" || return 1
+	if [ "$seconds" = 'all-day' ]; then
+		clear_bonus "$profile"
+		set_all_day "$profile"
+	else
+		clear_all_day "$profile"
+		set_bonus "$profile" "$seconds"
+	fi
+}
+
+profile_bedtime_active() {
+	profile="$1"
+	schedule=$(current_schedule)
+	bedtime_start=$(profile_schedule_value "$profile" "$schedule" bedtime_start bedtime_start '')
+	bedtime_end=$(profile_schedule_value "$profile" "$schedule" bedtime_end bedtime_end '')
+	now_hhmm="${OWRTPC_NOW_HHMM:-$(date +%H:%M)}"
+	is_bedtime "$bedtime_start" "$bedtime_end" "$(time_minutes "$now_hhmm")"
+}
+
 profile_reason() {
 	profile="$1"
+	if profile_bedtime_active "$profile"; then
+		discard_time_credit "$profile"
+		printf 'bedtime\n'
+		return
+	fi
+
 	config_get_bool profile_enabled "$profile" enabled 1
 	[ "$profile_enabled" -eq 1 ] || { printf 'disabled\n'; return; }
 
@@ -165,19 +246,17 @@ profile_reason() {
 		return
 	fi
 
-	schedule=$(current_schedule)
-	bedtime_start=$(profile_schedule_value "$profile" "$schedule" bedtime_start bedtime_start '')
-	bedtime_end=$(profile_schedule_value "$profile" "$schedule" bedtime_end bedtime_end '')
-	now_hhmm="${OWRTPC_NOW_HHMM:-$(date +%H:%M)}"
-	if is_bedtime "$bedtime_start" "$bedtime_end" "$(time_minutes "$now_hhmm")"; then
-		printf 'bedtime\n'
+	if [ "$(get_all_day "$profile")" -eq 1 ]; then
+		printf 'none\n'
 		return
 	fi
 
+	schedule=$(current_schedule)
 	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
 	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
 	used=$(get_used "$profile")
-	if [ "$daily_minutes" -gt 0 ] && [ "$used" -ge $((daily_minutes * 60)) ]; then
+	bonus=$(get_bonus "$profile")
+	if [ "$daily_minutes" -gt 0 ] && [ "$used" -ge $((daily_minutes * 60 + bonus)) ]; then
 		printf 'quota\n'
 		return
 	fi
@@ -211,6 +290,11 @@ validate_device() {
 
 validate_profile() {
 	profile="$1"
+	config_get profile_threshold "$profile" activity_threshold_bytes ''
+	case "$profile_threshold" in
+		'') ;;
+		*[!0-9]*|0) validation_error "profile $profile has invalid activity_threshold_bytes" ;;
+	esac
 	for schedule in weekday weekend; do
 		daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
 		case "$daily_minutes" in
@@ -228,6 +312,18 @@ validate_profile() {
 validate_config() {
 	config_load owrtpc
 	VALIDATE_ERRORS=0
+	config_get main_threshold main activity_threshold_bytes 131072
+	case "$main_threshold" in
+		''|*[!0-9]*|0) validation_error 'main has invalid activity_threshold_bytes' ;;
+	esac
+	config_get confirm_window main activity_confirm_window 300
+	case "$confirm_window" in
+		''|*[!0-9]*|0) validation_error 'main has invalid activity_confirm_window' ;;
+	esac
+	config_get idle_timeout main activity_idle_timeout 180
+	case "$idle_timeout" in
+		''|*[!0-9]*|0) validation_error 'main has invalid activity_idle_timeout' ;;
+	esac
 	VALIDATE_SEEN=$(mktemp "$STATE_DIR/validate.XXXXXX") || return 1
 	config_foreach validate_profile profile
 	rm -f "$VALIDATE_SEEN"
@@ -336,30 +432,153 @@ apply_policy() {
 
 COUNTERS_FILE=''
 SAMPLE_ELAPSED=0
-SAMPLE_THRESHOLD=1024
+SAMPLE_NOW=0
+SAMPLE_THRESHOLD=131072
+SAMPLE_PROFILE_THRESHOLD=131072
+ACTIVITY_CONFIRM_WINDOW=300
+ACTIVITY_IDLE_TIMEOUT=180
+
+activity_path() {
+	local mac="$1"
+	local key="$2"
+	local id
+	id=$(normalize_mac "$mac" | tr -d ':')
+	printf '%s/device-%s.activity-%s\n' "$STATE_DIR" "$id" "$key"
+}
+
+activity_read() {
+	local path value
+	path=$(activity_path "$1" "$2")
+	value=0
+	[ -r "$path" ] && value=$(sed -n '1p' "$path")
+	case "$value" in ''|*[!0-9]*) value=0 ;; esac
+	printf '%s\n' "$value"
+}
+
+activity_write() {
+	local path
+	path=$(activity_path "$1" "$2")
+	printf '%s\n' "$3" > "$path.tmp"
+	mv "$path.tmp" "$path"
+}
+
+activity_remove() {
+	local path
+	path=$(activity_path "$1" "$2")
+	rm -f "$path"
+}
+
+clear_device_activity() {
+	local mac
+	mac=$(normalize_mac "$1")
+	valid_mac "$mac" || return
+	activity_remove "$mac" candidate_started
+	activity_remove "$mac" candidate_elapsed
+	activity_remove "$mac" active
+	activity_remove "$mac" quiet_elapsed
+}
+
+start_activity_candidate() {
+	local mac="$1"
+	clear_device_activity "$mac"
+	activity_write "$mac" candidate_started "$SAMPLE_NOW"
+	activity_write "$mac" candidate_elapsed "$SAMPLE_ELAPSED"
+}
+
+add_profile_usage() {
+	local profile="$1"
+	local elapsed="$2"
+	local current
+	[ "$elapsed" -gt 0 ] || return
+	current=$(get_used "$profile")
+	set_used "$profile" $((current + elapsed))
+}
 
 counter_bytes() {
-	mac="$1"
+	local mac="$1"
 	awk -F '\t' -v mac="$mac" '$1 == mac { total += $2 } END { print total + 0 }' "$COUNTERS_FILE"
 }
 
 sample_device() {
-	device="$1"
-	profile="$2"
+	local device="$1"
+	local profile="$2"
+	local mac bytes significant active candidate_started candidate_elapsed age quiet_elapsed
 	mac=$(normalize_mac "$device")
 	valid_mac "$mac" || return
 	bytes=$(counter_bytes "$mac")
 	case "$bytes" in ''|*[!0-9]*) bytes=0 ;; esac
-	if [ "$bytes" -ge "$SAMPLE_THRESHOLD" ]; then
-		current=$(get_used "$profile")
-		set_used "$profile" $((current + SAMPLE_ELAPSED))
+	if [ "$bytes" -ge "$SAMPLE_PROFILE_THRESHOLD" ]; then
+		significant=1
+	else
+		significant=0
+	fi
+
+	active=$(activity_read "$mac" active)
+	if [ "$active" -eq 1 ]; then
+		quiet_elapsed=$(activity_read "$mac" quiet_elapsed)
+		if [ "$significant" -eq 1 ]; then
+			add_profile_usage "$profile" $((quiet_elapsed + SAMPLE_ELAPSED))
+			activity_remove "$mac" quiet_elapsed
+		else
+			quiet_elapsed=$((quiet_elapsed + SAMPLE_ELAPSED))
+			if [ "$quiet_elapsed" -ge "$ACTIVITY_IDLE_TIMEOUT" ]; then
+				clear_device_activity "$mac"
+			else
+				activity_write "$mac" quiet_elapsed "$quiet_elapsed"
+			fi
+		fi
+		return
+	fi
+
+	candidate_started=$(activity_read "$mac" candidate_started)
+	if [ "$candidate_started" -eq 0 ]; then
+		[ "$significant" -eq 0 ] || start_activity_candidate "$mac"
+		return
+	fi
+
+	age=$((SAMPLE_NOW - candidate_started))
+	if [ "$age" -ge "$ACTIVITY_CONFIRM_WINDOW" ]; then
+		clear_device_activity "$mac"
+		[ "$significant" -eq 0 ] || start_activity_candidate "$mac"
+		return
+	fi
+
+	candidate_elapsed=$(activity_read "$mac" candidate_elapsed)
+	candidate_elapsed=$((candidate_elapsed + SAMPLE_ELAPSED))
+	if [ "$significant" -eq 1 ]; then
+		add_profile_usage "$profile" "$candidate_elapsed"
+		clear_device_activity "$mac"
+		activity_write "$mac" active 1
+	else
+		activity_write "$mac" candidate_elapsed "$candidate_elapsed"
 	fi
 }
 
 sample_profile() {
-	profile="$1"
+	local profile="$1"
+	local profile_enabled schedule daily_minutes reason
 	config_get_bool profile_enabled "$profile" enabled 1
-	[ "$profile_enabled" -eq 1 ] || return
+	if [ "$profile_enabled" -ne 1 ]; then
+		config_list_foreach "$profile" device clear_device_activity
+		return
+	fi
+
+	schedule=$(current_schedule)
+	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
+	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
+	if [ "$daily_minutes" -eq 0 ]; then
+		config_list_foreach "$profile" device clear_device_activity
+		return
+	fi
+
+	reason=$(profile_reason "$profile")
+	if [ "$reason" != 'none' ]; then
+		config_list_foreach "$profile" device clear_device_activity
+		return
+	fi
+
+	config_get SAMPLE_PROFILE_THRESHOLD "$profile" activity_threshold_bytes "$SAMPLE_THRESHOLD"
+	case "$SAMPLE_PROFILE_THRESHOLD" in ''|*[!0-9]*|0) SAMPLE_PROFILE_THRESHOLD="$SAMPLE_THRESHOLD" ;; esac
 	config_list_foreach "$profile" device sample_device "$profile"
 }
 
@@ -375,11 +594,16 @@ sample_usage() {
 	ensure_state
 	config_load owrtpc
 	config_get sample_interval main sample_interval 60
-	config_get SAMPLE_THRESHOLD main activity_threshold_bytes 1024
+	config_get SAMPLE_THRESHOLD main activity_threshold_bytes 131072
+	config_get ACTIVITY_CONFIRM_WINDOW main activity_confirm_window 300
+	config_get ACTIVITY_IDLE_TIMEOUT main activity_idle_timeout 180
 	case "$sample_interval" in ''|*[!0-9]*|0) sample_interval=60 ;; esac
-	case "$SAMPLE_THRESHOLD" in ''|*[!0-9]*) SAMPLE_THRESHOLD=1024 ;; esac
+	case "$SAMPLE_THRESHOLD" in ''|*[!0-9]*|0) SAMPLE_THRESHOLD=131072 ;; esac
+	case "$ACTIVITY_CONFIRM_WINDOW" in ''|*[!0-9]*|0) ACTIVITY_CONFIRM_WINDOW=300 ;; esac
+	case "$ACTIVITY_IDLE_TIMEOUT" in ''|*[!0-9]*|0) ACTIVITY_IDLE_TIMEOUT=180 ;; esac
 
 	now=$(date +%s)
+	SAMPLE_NOW="$now"
 	last=0
 	[ -r "$STATE_DIR/last_sample" ] && last=$(sed -n '1p' "$STATE_DIR/last_sample")
 	case "$last" in ''|*[!0-9]*) last=0 ;; esac
@@ -414,22 +638,49 @@ status_profile() {
 	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
 	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
 	used=$(get_used "$profile")
+	reason=$(profile_reason "$profile")
+	bonus=$(get_bonus "$profile")
+	all_day=$(get_all_day "$profile")
 	limit=$((daily_minutes * 60))
+	if [ "$all_day" -eq 1 ]; then
+		limit=0
+	else
+		[ "$limit" -eq 0 ] || limit=$((limit + bonus))
+	fi
 	remaining=0
 	[ "$limit" -eq 0 ] || {
 		remaining=$((limit - used))
 		[ "$remaining" -ge 0 ] || remaining=0
 	}
-	reason=$(profile_reason "$profile")
 	config_get_bool manual "$profile" blocked 0
-	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$profile" "$name" "$used" "$limit" "$remaining" "$reason" "$manual" "$schedule"
+	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$profile" "$name" "$used" "$limit" "$remaining" "$reason" "$manual" "$schedule" "$bonus" "$all_day"
 }
 
 status_all() {
 	ensure_state
 	config_load owrtpc
-	printf 'section\tname\tused_seconds\tlimit_seconds\tremaining_seconds\treason\tmanual_blocked\tschedule\n'
+	printf 'section\tname\tused_seconds\tlimit_seconds\tremaining_seconds\treason\tmanual_blocked\tschedule\tbonus_seconds\tall_day\n'
 	config_foreach status_profile profile
+}
+
+add_time() {
+	profile="$1"
+	seconds="$2"
+	safe_id "$profile" || return 1
+	case "$seconds" in 3600|14400|all-day) ;; *) return 1 ;; esac
+	ensure_state
+	config_load owrtpc
+	if profile_bedtime_active "$profile"; then
+		discard_time_credit "$profile"
+		checkpoint_state
+		return 2
+	fi
+	schedule=$(current_schedule)
+	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
+	case "$daily_minutes" in ''|*[!0-9]*|0) return 3 ;; esac
+	replace_time_credit "$profile" "$seconds"
+	checkpoint_state
+	apply_policy
 }
 
 initialize() {
@@ -463,9 +714,10 @@ case "${1:-}" in
 	init) initialize ;;
 	sample) sample_usage ;;
 	status) status_all ;;
+	add-time) add_time "${2:-}" "${3:-}" ;;
 	validate) ensure_state; validate_config ;;
 	*)
-		echo "Usage: owrtpcctl {init|sample|apply|status|validate|checkpoint}" >&2
+		echo "Usage: owrtpcctl {init|sample|apply|status|validate|checkpoint|add-time PROFILE SECONDS}" >&2
 		exit 2
 		;;
 esac

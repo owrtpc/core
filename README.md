@@ -10,7 +10,9 @@ The first milestone supports:
 - multiple devices per profile, with one profile at most per device;
 - weekday and weekend profile allowances shared cumulatively by all devices;
 - separate weekday and weekend bedtime windows, including midnight crossing;
-- an immediate manual block/unblock action;
+- immediate manual block/unblock, +1h, +4h and All Day quick actions;
+- replacement-based same-day extra time (+1h, +4h or All Day), discarded at bedtime or day rollover;
+- native LuCI notifications for quick-action results;
 - lightweight usage accounting with periodic, configurable flash checkpoints.
 
 ## Daily allowance semantics
@@ -22,9 +24,15 @@ Saturday-Sunday. Usage is measured in
 to another profile is accounted independently.
 
 A device is considered active during a sampling interval when it transfers at
-least `activity_threshold_bytes` bytes. This prevents background noise from
-consuming the allowance. Both the threshold and sampling interval are
-configurable.
+least `activity_threshold_bytes` bytes. The default is 128 KiB per sample, so
+small keepalives and standby telemetry do not consume the allowance. For
+profiles with a finite allowance, a first meaningful burst creates a candidate
+session and a second burst within five minutes confirms it. Short buffering
+gaps are counted only if traffic resumes within three minutes; otherwise the
+silent tail is discarded. Unlimited profiles skip session calculations entirely.
+Each profile can still override the threshold as an advanced fallback. This
+remains a network-traffic heuristic: the router cannot know the physical power
+or screen state of a generic client.
 
 The router's local calendar selects the weekday or weekend schedule. Usage
 still resets at each local calendar-day boundary, so each day receives the
