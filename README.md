@@ -86,6 +86,11 @@ Firewall software/hardware flow offloading must currently be disabled so every
 forwarded packet reaches the accounting hook. See the architecture notes for
 details.
 
+## Mobile app planning
+
+A cross-platform companion app is planned, but development is deferred.
+See [the mobile specifications](docs/MOBILE_APP.md) for the recorded scope.
+
 ## Contributing and security
 
 Bug reports and focused pull requests are welcome. Read
