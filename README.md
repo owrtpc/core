@@ -1,12 +1,12 @@
 # OWRT Parental Control (OWRTPC)
 
 OWRTPC is an independent, open-source parental-control application for OpenWrt
-25.12 and newer. It provides a LuCI interface backed by UCI, rpcd and
-nftables/firewall4.
+25.12 and newer. Its standalone backend uses UCI, rpcd and nftables/firewall4; an optional
+LuCI package supplies the web interface.
 
 The project is maintained under the [OWRTPC organization](https://github.com/owrtpc).
 The canonical repository is
-[owrtpc/owrt-parental-control](https://github.com/owrtpc/owrt-parental-control).
+[owrtpc/core](https://github.com/owrtpc/core).
 
 The first milestone supports:
 
@@ -51,30 +51,24 @@ allowance configured for its schedule.
 
 ## Repository layout
 
-The package is in `luci-app-owrtpc/` and can be copied into the `package/`
-directory of an OpenWrt build tree or exposed through a package feed.
+`owrtpc/` contains the standalone router backend package (`Makefile`, `files/`).
+`luci-app-owrtpc/` contains the optional LuCI package (`Makefile`, `htdocs/`,
+`root/`, `po/`). Tests, documentation and build tools are shared in this repository.
+The future `owrtpc/mobile` repository is deferred; there is no separate LuCI repository.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for build and test instructions.
 The [Docker environment](docker/README.md) runs the real OpenWrt 25.12.5 ARM64
 userspace extracted from a sysupgrade image for UI, API and backend smoke tests.
 
-## Development installation
+## Installation
 
-Clone the repository into an OpenWrt buildroot with the LuCI feed installed, or
-symlink the package directory into an existing tree:
-
-```sh
-ln -s /path/to/owrt-parental-control/luci-app-owrtpc \
-    package/luci-app-owrtpc
-make menuconfig
-make package/luci-app-owrtpc/compile V=s
-```
-
-Select **LuCI > Applications > luci-app-owrtpc** in `menuconfig`. Published
-installation packages and stable upgrade instructions will be added with the
-first release; until then, builds from this repository are intended for
-development and testing.
+Install `owrtpc` first, then optionally `luci-app-owrtpc`. The interface depends
+on the backend; the backend runs without LuCI. Follow [installation and manual
+LuCI upload instructions](docs/INSTALL.md). Existing monolithic installations
+require the documented backup/checkpoint migration before uploading r22.
+See [development instructions](docs/DEVELOPMENT.md) for SDK builds, and the
+[shared API contract](docs/API.md) for client dependencies and permissions.
 
 ## Project status
 

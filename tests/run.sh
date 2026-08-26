@@ -13,7 +13,7 @@ export OWRTPC_STATE_DIR="$TEST_ROOT/state"
 export OWRTPC_PERSIST_DIR="$TEST_ROOT/persist"
 
 # shellcheck source=/dev/null
-. "$PROJECT_DIR/luci-app-owrtpc/root/usr/sbin/owrtpcctl"
+. "$PROJECT_DIR/owrtpc/files/usr/sbin/owrtpcctl"
 
 passed=0
 failed=0

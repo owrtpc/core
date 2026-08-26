@@ -5,8 +5,9 @@
 1. **LuCI UI** edits the `owrtpc` UCI configuration and calls the `owrtpc`
    rpcd object for live status and quick actions.
 2. **rpcd plugin** exposes read-only status, validation, refresh and the
-   explicit quick block action. Its ACL limits access to authenticated LuCI
-   administrators granted the OWRTPC permission.
+   explicit quick block action. Its backend-owned ACL limits access to authenticated clients granted the
+   OWRTPC permission, independently of LuCI. Device discovery is supplied by
+   the standalone `rpcd-mod-luci` dependency.
 3. **owrtpcd** samples traffic periodically and asks `owrtpcctl` to reconcile
    policy.
 4. **owrtpcctl** is the single policy engine. It validates assignments, accounts
@@ -17,6 +18,10 @@
 
 OWRTPC deliberately owns a separate nftables table. It does not edit generated
 firewall4 chains and therefore does not depend on their internal names.
+
+See [API.md](API.md) for shared APIs and ACL ownership, and
+[INSTALL.md](INSTALL.md) for the monolith-to-two-packages migration. The policy
+engine, UCI schema and runtime/state paths are unchanged by the split.
 
 ## Data model
 

@@ -18,9 +18,12 @@ Do not report security vulnerabilities in a public issue; follow
 
 1. Create a feature branch from `main`.
 2. Keep each commit focused on one logical change.
-3. Run `./tests/run.sh` before submitting the change.
+3. Run `./tests/run.sh`, `node tests/release.test.js`, and
+   `node tests/packaging.test.js` before submitting the change.
 4. Test on an OpenWrt 25.12+ device or with the documented Docker environment
-   when the change affects runtime behavior.
+   when the change affects runtime behavior. Package layout changes also require
+   real APK installation, headless operation and migration tests as documented
+   in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 5. Open a pull request explaining the behavior, rationale and test coverage.
 
 Follow the coding style of the surrounding files. LuCI translations must

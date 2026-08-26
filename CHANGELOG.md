@@ -6,6 +6,23 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0_alpha1-r22] - unreleased
+
+### Changed
+
+- Split the monolith into standalone `owrtpc` and optional `luci-app-owrtpc`,
+  both maintained in `owrtpc/core`. The future `owrtpc/mobile` remains deferred.
+- Move service, CLI, UCI, firewall integration, shared RPCs and ACLs into the
+  backend without changing parental-control rules or accounting algorithms.
+- Declare actual device-discovery dependencies, retain legacy ACL grants,
+  and add an explicit backed-up migration from the old package owner.
+- Preserve UCI as a conffile and persistent counters in the sysupgrade keep list.
+- Build and verify both packages; enforce DCO and successful exact-commit CI
+  before stable-key release signing. Add real APK lifecycle tests.
+- Add a LuCI-generated translation template; no hand-written translations.
+
+## Previous MVP development
+
 ### Added
 
 - Profile-based parental-control configuration in LuCI.

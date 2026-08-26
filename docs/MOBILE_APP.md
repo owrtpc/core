@@ -17,8 +17,8 @@ Android and iOS before committing to the implementation.
 ## Project boundaries
 
 - Keep the router engine, APIs and LuCI interface in
-  `owrtpc/owrt-parental-control`.
-- Plan a separate `owrtpc-mobile` repository under the OWRTPC organization.
+  `owrtpc/core`.
+- Plan a separate `owrtpc/mobile` repository.
   Repository creation and app scaffolding are deferred.
 - The router remains the source of truth for configuration, usage, quotas and
   enforcement. The app must not duplicate the parental-control engine.

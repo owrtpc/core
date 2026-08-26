@@ -14,7 +14,8 @@ const repo = path.join(root, 'checkout with spaces');
 const remote = path.join(root, 'origin.git');
 const bin = path.join(root, 'bin');
 const key = path.join(root, 'test-key.pem');
-const env = { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+const env = { ...process.env, PATH: bin + path.delimiter + process.env.PATH,
+	GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
 let passed = 0;
 
 function git(cwd, ...args) {
@@ -45,7 +46,7 @@ function allowed() {
 }
 function commit(cwd, message) {
 	git(cwd, 'add', '.');
-	git(cwd, 'commit', '-qm', message);
+	git(cwd, 'commit', '--signoff', '-qm', message);
 }
 function identity(cwd) {
 	git(cwd, 'config', 'user.name', 'Release Test');
@@ -60,16 +61,27 @@ function build(extra = {}) {
 try {
 	fs.mkdirSync(repo);
 	fs.mkdirSync(bin);
+	// Mock only the network CI query. The production gate has no bypass.
+	fs.writeFileSync(path.join(bin, 'python3'),
+		'#!/bin/sh\n[ -z "$FAIL_CI" ] || exit 1\necho https://github.com/owrtpc/core/actions/runs/1\n',
+		{ mode: 0o755 });
 	git(root, 'init', '--bare', '-q', remote);
 	git(repo, 'init', '-q', '-b', 'main');
 	identity(repo);
-	write('.gitignore', 'dist/\n*.ignored\n');
+	write('.gitignore', 'dist/\ntmp/\n*.ignored\n');
 	write('luci-app-owrtpc/Makefile', 'PKG_VERSION:=0.1.0_alpha1\nPKG_RELEASE:=1\n');
 	write('luci-app-owrtpc/payload', 'initial payload\n');
+	write('owrtpc/Makefile', 'PKG_VERSION:=0.1.0_alpha1\nPKG_RELEASE:=1\n');
+	write('owrtpc/payload', 'backend payload\n');
+	write('scripts/sdk-build.sh', 'exit 0\n');
+	write('scripts/check-ci.py', '# network query mocked by test python3\n');
 	write('keys/owrtpc-release.pem', 'public key fixture\n');
 	for (const name of ['check-release.sh', 'build-signed-apk.sh'])
 		write('scripts/' + name, fs.readFileSync(path.join(project, 'scripts', name)));
 	commit(repo, 'initial fixture');
+	git(repo, 'commit', '--allow-empty', '-qm', 'unsigned fixture');
+	blocked(check(), /lacks a DCO/);
+	git(repo, 'commit', '--amend', '--allow-empty', '--no-edit', '--signoff');
 	blocked(check(), /cannot verify origin\/main/);
 	git(repo, 'remote', 'add', 'origin', remote);
 	git(repo, 'push', '-q', '-u', 'origin', 'main');
@@ -120,6 +132,7 @@ try {
 	blocked(check(), /cannot verify origin\/main/);
 	git(repo, 'remote', 'set-url', 'origin', remote);
 	blocked(build(), /Signing key not found/);
+	blocked(build({ FAIL_CI: '1' }), /CI must pass/);
 
 	// Mock only Docker: exercise the real preflight, archive, provenance and
 	// overwrite protections without an SDK or access to the real signing key.
@@ -132,6 +145,7 @@ try {
 		'  if [ "$1" = -v ]; then',
 		'    case "$2" in',
 		'      *:/output) output="@{2%:/output}" ;;',
+		'      *:/build/*/package/owrtpc:ro) backend="@{2%%:/build/*}" ;;',
 		'      *:/build/*/package/luci-app-owrtpc:ro) source="@{2%%:/build/*}" ;;',
 		'    esac',
 		'    shift',
@@ -139,15 +153,20 @@ try {
 		'  shift',
 		'done',
 		'[ ! -e "$source/local.ignored" ]',
+		'if [ "@{FAIL_SECOND:-0}" = 1 ]; then',
+		'  cp "$backend/payload" "$output/owrtpc-0.1.0_alpha1-r1.apk"',
+		'  exit 3',
+		'fi',
 		'printf "changed during build\\n" > "$FIXTURE_REPO/luci-app-owrtpc/payload"',
 		'cp "$source/payload" "$output/luci-app-owrtpc-0.1.0_alpha1-r1.apk"',
+		'cp "$backend/payload" "$output/owrtpc-0.1.0_alpha1-r1.apk"',
 		''
 	].join('\n').replace(/@\{/g, '$' + '{'), { mode: 0o755 });
 
 	const filename = 'luci-app-owrtpc-0.1.0_alpha1-r1.apk';
 	const dist = path.join(repo, 'dist');
 	fs.mkdirSync(dist);
-	const lock = path.join(dist, '.' + filename + '.lock');
+	const lock = path.join(dist, '.release.lock');
 	fs.mkdirSync(lock);
 	blocked(build(), /already in progress/);
 	assert.ok(fs.existsSync(lock));
@@ -157,10 +176,18 @@ try {
 	assert.equal(fs.existsSync(path.join(dist, filename)), false);
 	assert.equal(fs.existsSync(lock), false);
 	passed++;
+	// A first built package must not leak into dist when its companion fails.
+	assert.equal(build({ FAIL_SECOND: '1' }).status, 3);
+	assert.deepEqual(fs.readdirSync(dist), []);
+	passed++;
 
 	const sourceCommit = git(repo, 'rev-parse', 'HEAD');
 	const result = build();
 	assert.equal(result.status, 0, result.stderr);
+	const backendName = 'owrtpc-0.1.0_alpha1-r1.apk';
+	assert.equal(fs.readFileSync(path.join(dist, backendName), 'utf8'), 'backend payload\n');
+	assert.ok(fs.existsSync(path.join(dist, backendName + '.buildinfo')));
+	assert.ok(fs.existsSync(path.join(dist, backendName + '.sha256')));
 	const apk = fs.readFileSync(path.join(dist, filename));
 	assert.equal(apk.toString(), 'next payload\n');
 	assert.equal(fs.existsSync(lock), false);
@@ -177,6 +204,10 @@ try {
 	blocked(build(), /already exists; bump PKG_RELEASE/);
 	assert.equal(fs.readFileSync(path.join(dist, filename), 'utf8'), 'next payload\n');
 	fs.unlinkSync(path.join(dist, filename));
+	blocked(build(), /already exists; bump PKG_RELEASE/);
+	fs.unlinkSync(path.join(dist, filename + '.sha256'));
+	fs.unlinkSync(path.join(dist, filename + '.buildinfo'));
+	fs.unlinkSync(path.join(dist, backendName));
 	blocked(build(), /already exists; bump PKG_RELEASE/);
 	console.log('ok - ' + passed + ' release safeguards (real local Git remotes, mocked Docker)');
 } finally {

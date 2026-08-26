@@ -8,7 +8,10 @@ FIRMWARE_DEFAULT="$HOME/Downloads/openwrt-25.12.5-mediatek-filogic-xiaomi_mi-rou
 FIRMWARE=${1:-$FIRMWARE_DEFAULT}
 IMAGE=${OWRTPC_IMAGE:-owrtpc-openwrt:25.12.5-ax3000t}
 TOOLS_IMAGE=${OWRTPC_TOOLS_IMAGE:-owrtpc-squashfs-tools:3.22}
-OUTPUT_DIR=$(mktemp -d /tmp/owrtpc-docker-build.XXXXXX)
+mkdir -p "$PROJECT_DIR/tmp"
+OUTPUT_DIR=$(mktemp -d "$PROJECT_DIR/tmp/docker-build.XXXXXX")
+OVERLAY=${OWRTPC_OVERLAY:-both}
+case "$OVERLAY" in both|none) ;; *) echo 'OWRTPC_OVERLAY must be both or none' >&2; exit 1 ;; esac
 
 cleanup() {
 	rm -rf "$OUTPUT_DIR"
@@ -36,6 +39,7 @@ docker run --rm --privileged --platform linux/arm64 \
 	-v "$FIRMWARE:/input/firmware.bin:ro" \
 	-v "$PROJECT_DIR:/project:ro" \
 	-v "$OUTPUT_DIR:/output" \
+	-e OWRTPC_OVERLAY="$OVERLAY" \
 	"$TOOLS_IMAGE" sh -ec '
 		mkdir -p /work/firmware
 		tar -xf /input/firmware.bin -C /work/firmware
@@ -43,9 +47,12 @@ docker run --rm --privileged --platform linux/arm64 \
 		[ -n "$root_image" ]
 		unsquashfs -no-progress -d /work/rootfs "$root_image" >/dev/null
 		mkdir -p /work/rootfs/usr/local/bin
-		cp -a /project/luci-app-owrtpc/root/. /work/rootfs/
-		mkdir -p /work/rootfs/www
-		cp -a /project/luci-app-owrtpc/htdocs/. /work/rootfs/www/
+		if [ "$OWRTPC_OVERLAY" = both ]; then
+			cp -a /project/owrtpc/files/. /work/rootfs/
+			cp -a /project/luci-app-owrtpc/root/. /work/rootfs/
+			mkdir -p /work/rootfs/www
+			cp -a /project/luci-app-owrtpc/htdocs/. /work/rootfs/www/
+		fi
 		cp /project/docker/entrypoint.sh /work/rootfs/usr/local/bin/owrtpc-docker-entrypoint
 		chmod 0755 /work/rootfs/usr/local/bin/owrtpc-docker-entrypoint
 		tar --numeric-owner -cpf /output/rootfs.tar -C /work/rootfs .

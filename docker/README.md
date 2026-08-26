@@ -47,3 +47,33 @@ The derived image is deliberately local and is not pushed by these scripts.
 The smoke test has been verified against the supplied OpenWrt 25.12.5 AX3000T
 image. It exercises LuCI, rpcd login, the OWRTPC ubus object, a temporary
 profile, quick blocking and the resulting nftables rules.
+
+## Real package lifecycle tests
+
+The default image overlays both source directories for UI development; overlay
+smoke tests do not prove package ownership. Build a separate untouched firmware
+image and install actual temporary APKs for that:
+
+```sh
+sh scripts/build-test-apks.sh
+OWRTPC_OVERLAY=none OWRTPC_IMAGE=owrtpc-openwrt-base:25.12.5 ./docker/build-image.sh
+sh docker/test-packages.sh
+```
+
+The suite creates disposable containers without published ports. It checks
+clean install, headless operation after removal of `luci-base`, API discovery,
+restricted ACLs, and migration from `dist/luci-app-owrtpc-0.1.0_alpha1-r20.apk`.
+It verifies that removing the UI leaves the backend PID unchanged and exercises
+the same nftables policy checks as the UI smoke test. Normal APK dependency and
+file ownership checks remain enabled; only temporary unsigned test APKs use
+`--allow-untrusted`. The historical APK signature is verified with the stable
+public key. After release signing, pass the absolute `dist/` path as the first
+argument to test the release payloads too.
+
+CI runs clean/headless tests; the actual historical binary is available only
+locally. `OWRTPC_LEGACY_DIR` selects its directory. Kernel cgroup warnings from
+procd are expected in Docker; API, process and nftables assertions still fail
+the test if functionality breaks. No hardware forwarding, Wi-Fi or physical
+router behavior is claimed by these tests.
+
+The development UI port is bound to `127.0.0.1`, since its test password is public.

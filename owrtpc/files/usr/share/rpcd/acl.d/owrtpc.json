@@ -1,0 +1,86 @@
+{
+	"owrtpc": {
+		"description": "Grant access to OWRTPC parental control",
+		"read": {
+			"ubus": {
+				"owrtpc": [
+					"status",
+					"validate"
+				],
+				"luci-rpc": [
+					"getDHCPLeases",
+					"getHostHints"
+				]
+			},
+			"uci": [
+				"firewall",
+				"gl-client",
+				"owrtpc"
+			]
+		},
+		"write": {
+			"ubus": {
+				"owrtpc": [
+					"add_time",
+					"set_enabled",
+					"set_block",
+					"refresh"
+				],
+				"uci": [
+					"add",
+					"apply",
+					"confirm",
+					"delete",
+					"order",
+					"rename",
+					"set"
+				]
+			},
+			"uci": [
+				"owrtpc"
+			]
+		}
+	},
+	"luci-app-owrtpc": {
+		"description": "Compatibility alias for the OWRTPC API permission",
+		"read": {
+			"ubus": {
+				"owrtpc": [
+					"status",
+					"validate"
+				],
+				"luci-rpc": [
+					"getDHCPLeases",
+					"getHostHints"
+				]
+			},
+			"uci": [
+				"firewall",
+				"gl-client",
+				"owrtpc"
+			]
+		},
+		"write": {
+			"ubus": {
+				"owrtpc": [
+					"add_time",
+					"set_enabled",
+					"set_block",
+					"refresh"
+				],
+				"uci": [
+					"add",
+					"apply",
+					"confirm",
+					"delete",
+					"order",
+					"rename",
+					"set"
+				]
+			},
+			"uci": [
+				"owrtpc"
+			]
+		}
+	}
+}
