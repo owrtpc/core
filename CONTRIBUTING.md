@@ -50,3 +50,11 @@ git commit --signoff
 
 By signing off, you certify that you have the right to submit the contribution
 under this repository's Apache-2.0 license.
+
+## Release discipline
+
+Every change included in a distributed APK must be committed and pushed first.
+Use the sequence: tests, DCO-signed commit, push, successful CI, signed build.
+Do not generate a release from a dirty checkout or an unpushed commit, and do
+not overwrite an already distributed version. See
+[the release workflow](docs/DEVELOPMENT.md#signed-release-apks).

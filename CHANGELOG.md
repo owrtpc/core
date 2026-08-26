@@ -43,3 +43,11 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 - Profile dialogs now use the standard LuCI staged-change workflow: Save records
   pending UCI changes, the native Unsaved Changes indicator tracks them, and
   Save & Apply commits them permanently.
+
+### Changed
+
+- Release builds now require a clean main checkout matching the live
+  origin/main commit. Packaging uses a committed source snapshot and preserves
+  checksum and source-commit sidecars without overwriting existing artifacts.
+- Recover the final source changes previously distributed as r15-r20 test
+  APKs; those historical binaries remain unchanged and are not retagged.

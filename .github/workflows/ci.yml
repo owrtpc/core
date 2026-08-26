@@ -19,6 +19,9 @@ jobs:
       - name: Run shell tests
         run: ./tests/run.sh
 
+      - name: Check release safeguards
+        run: node tests/release.test.js
+
       - name: Validate JSON files
         run: |
           find luci-app-owrtpc -type f -name '*.json' -print0 \
