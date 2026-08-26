@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_VERSION:=0.1.0_alpha1
-PKG_RELEASE:=14
+PKG_RELEASE:=20
 PKG_LICENSE:=Apache-2.0
 
 LUCI_TITLE:=OWRTPC parental control

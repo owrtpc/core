@@ -57,6 +57,13 @@ without charging the final idle tail. Unlimited profiles clear and skip all
 per-device activity state. Activity remains a traffic-volume heuristic because
 a router cannot observe a generic device's physical power or display state.
 
+Every committed interval is also attributed to the originating MAC in a
+per-device diagnostic counter. The sum is not used for policy decisions: quota
+enforcement continues to read the cumulative profile counter only. The
+owrtpcctl diagnostics command exposes attribution, activity state and the last
+sample metadata. Candidate, start and stop transitions are written to the
+owrtpc system log without logging every sampling interval.
+
 Runtime usage and same-day extra-time credit live in `/tmp/owrtpc`. They are
 checkpointed to `/etc/owrtpc/state` at a configurable interval (15 minutes by
 default), trading at most one checkpoint interval of usage after sudden power

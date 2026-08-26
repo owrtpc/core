@@ -59,6 +59,7 @@ assert_eq 0 "$(get_used children)" 'the first traffic burst is only a session ca
 SAMPLE_NOW=1060
 sample_device AA:BB:CC:DD:EE:01 children
 assert_eq 120 "$(get_used children)" 'a second burst confirms and retroactively counts the session'
+assert_eq 120 "$(get_device_used AA:BB:CC:DD:EE:01)" 'confirmed session is attributed to its device'
 
 write_counters 0
 SAMPLE_NOW=1120
@@ -68,6 +69,17 @@ write_counters 262144
 SAMPLE_NOW=1180
 sample_device AA:BB:CC:DD:EE:01 children
 assert_eq 240 "$(get_used children)" 'traffic resuming inside the grace period confirms the buffering gap'
+assert_eq 240 "$(get_device_used AA:BB:CC:DD:EE:01)" 'resumed buffering gap is attributed to its device'
+DIAGNOSTICS_PROFILE_NAME=Children
+diagnostics_row=$(diagnostics_device AA:BB:CC:DD:EE:01 children)
+assert_eq 240 "$(printf '%s\n' "$diagnostics_row" | cut -f4)" 'diagnostics output exposes attributed device time'
+assert_eq active "$(printf '%s\n' "$diagnostics_row" | cut -f5)" 'diagnostics output exposes the activity state'
+assert_eq 262144 "$(printf '%s\n' "$diagnostics_row" | cut -f8)" 'diagnostics output exposes the latest sampled bytes'
+add_profile_usage children AA:BB:CC:DD:EE:02 60
+assert_eq 300 "$(get_used children)" 'a second device contributes to the cumulative profile total'
+assert_eq 60 "$(get_device_used AA:BB:CC:DD:EE:02)" 'the second device keeps separate diagnostic attribution'
+set_used children 240
+set_device_used AA:BB:CC:DD:EE:02 0
 
 write_counters 0
 SAMPLE_NOW=1240
@@ -126,7 +138,7 @@ config_list_foreach() { :; }
 
 config_get_bool() {
 	variable="$1"; section="$2"; option="$3"; default="$4"
-	case "$option" in enabled) value=1 ;; blocked) value=0 ;; *) value="$default" ;; esac
+	case "$option" in enabled) value="${TEST_PROFILE_ENABLED:-1}" ;; blocked) value=0 ;; *) value="$default" ;; esac
 	eval "$variable=\$value"
 }
 config_get() {
@@ -159,7 +171,16 @@ config_get() {
 export OWRTPC_NOW_HHMM=22:00
 export OWRTPC_DAY_OF_WEEK=1
 assert_eq weekday "$(current_schedule)" 'Monday selects the weekday schedule'
+set_bonus children 3600
+set_all_day children
+TEST_PROFILE_ENABLED=0
+assert_eq disabled "$(profile_reason children)" 'a disabled profile bypasses bedtime'
+assert_eq 3600 "$(get_bonus children)" 'disabled profiles retain unused extra time'
+assert_eq 1 "$(get_all_day children)" 'disabled profiles retain All Day state'
+TEST_PROFILE_ENABLED=1
 assert_eq bedtime "$(profile_reason children)" 'weekday bedtime uses weekday hours'
+assert_eq 0 "$(get_bonus children)" 'bedtime discards extra time after re-enabling'
+assert_eq 0 "$(get_all_day children)" 'bedtime ends All Day after re-enabling'
 export OWRTPC_DAY_OF_WEEK=6
 assert_eq weekend "$(current_schedule)" 'Saturday selects the weekend schedule'
 assert_eq none "$(profile_reason children)" 'weekend uses its own quota and bedtime'
@@ -196,8 +217,10 @@ set_used children 180
 set_bonus children 14400
 checkpoint_state
 clear_bonus children
+set_device_used AA:BB:CC:DD:EE:01 0
 restore_state
 assert_eq 14400 "$(get_bonus children)" 'extra time survives a same-day service restart'
+assert_eq 240 "$(get_device_used AA:BB:CC:DD:EE:01)" 'per-device diagnostic usage survives a same-day service restart'
 set_all_day children
 checkpoint_state
 clear_all_day children
@@ -207,12 +230,14 @@ printf '1900-01-01\n' > "$OWRTPC_STATE_DIR/date"
 ensure_state
 assert_eq 0 "$(get_bonus children)" 'extra time never carries into the next day'
 assert_eq 0 "$(get_all_day children)" 'All Day never carries into the next day'
+assert_eq 0 "$(get_device_used AA:BB:CC:DD:EE:01)" 'per-device diagnostic usage resets on the next day'
 unset OWRTPC_NOW_HHMM OWRTPC_DAY_OF_WEEK
 set_used children 120
 
 config_get_bool() {
 	variable="$1"; section="$2"; option="$3"; default="$4"
 	case "$option:$section" in
+		enabled:p0) value=0 ;;
 		enabled:*) value=1 ;;
 		blocked:p2) value=1 ;;
 		blocked:*) value=0 ;;
@@ -232,6 +257,7 @@ config_get() {
 config_list_foreach() {
 	section="$1"; option="$2"; callback="$3"; shift 3
 	case "$section:$option" in
+		p0:device) list='AA:BB:CC:DD:EE:01' ;;
 		p1:device) list='AA:BB:CC:DD:EE:01 AA:BB:CC:DD:EE:02' ;;
 		p2:device) list='AA:BB:CC:DD:EE:01 AA:BB:CC:DD:EE:03' ;;
 		*) list='' ;;
@@ -246,9 +272,11 @@ APPLY_OUTPUT_DEVICES="$TEST_ROOT/apply-output-devices"
 : > "$APPLY_BLOCKS"
 : > "$APPLY_COUNTERS"
 printf 'wan0\n' > "$APPLY_OUTPUT_DEVICES"
+apply_profile p0
 apply_profile p1
 apply_profile p2
 assert_eq 2 "$(grep -c 'counter comment' "$APPLY_COUNTERS")" 'allowed devices receive per-device counters'
+assert_eq 1 "$(grep -c 'owrtpc-device:AA:BB:CC:DD:EE:01' "$APPLY_COUNTERS")" 'disabled profiles do not reserve devices or create rules'
 assert_eq 1 "$(grep -c 'owrtpc-duplicate:AA:BB:CC:DD:EE:01' "$APPLY_BLOCKS")" 'duplicate assignment fails closed'
 assert_eq 1 "$(grep -c 'owrtpc-block:manual:AA:BB:CC:DD:EE:03' "$APPLY_BLOCKS")" 'manual block produces a WAN drop rule'
 wan_rule_count=$(grep -h 'oifname "wan0"' "$APPLY_BLOCKS" "$APPLY_COUNTERS" | wc -l | tr -d ' ')

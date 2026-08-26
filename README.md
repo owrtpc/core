@@ -38,6 +38,13 @@ Each profile can still override the threshold as an advanced fallback. This
 remains a network-traffic heuristic: the router cannot know the physical power
 or screen state of a generic client.
 
+owrtpcctl diagnostics shows the time attributed to every configured device,
+its current activity state and the most recent sampled byte count. These
+per-device counters are diagnostic only: enforcement continues to use the
+cumulative profile total. They are checkpointed with profile usage and reset at
+the local day boundary. After upgrading from an older release, usage already
+accumulated earlier that day remains unattributed until the next daily reset.
+
 The router's local calendar selects the weekday or weekend schedule. Usage
 still resets at each local calendar-day boundary, so each day receives the
 allowance configured for its schedule.

@@ -99,7 +99,7 @@ ensure_state() {
 	[ -r "$STATE_DIR/date" ] && state_date=$(sed -n '1p' "$STATE_DIR/date")
 
 	if [ "$state_date" != "$today" ]; then
-		for state_file in "$STATE_DIR"/profile-*.used "$STATE_DIR"/profile-*.bonus "$STATE_DIR"/profile-*.all_day "$STATE_DIR"/device-*.activity-*; do
+		for state_file in "$STATE_DIR"/profile-*.used "$STATE_DIR"/profile-*.bonus "$STATE_DIR"/profile-*.all_day "$STATE_DIR"/device-*.used "$STATE_DIR"/device-*.activity-* "$STATE_DIR"/device-*.diagnostic-*; do
 			[ -e "$state_file" ] && rm -f "$state_file"
 		done
 		printf '%s\n' "$today" > "$STATE_DIR/date"
@@ -114,7 +114,7 @@ restore_state() {
 	[ -r "$PERSIST_DIR/date" ] && persist_date=$(sed -n '1p' "$PERSIST_DIR/date")
 	[ "$persist_date" = "$today" ] || return 0
 
-	for state_file in "$PERSIST_DIR"/profile-*.used "$PERSIST_DIR"/profile-*.bonus "$PERSIST_DIR"/profile-*.all_day; do
+	for state_file in "$PERSIST_DIR"/profile-*.used "$PERSIST_DIR"/profile-*.bonus "$PERSIST_DIR"/profile-*.all_day "$PERSIST_DIR"/device-*.used; do
 		[ -e "$state_file" ] || continue
 		cp "$state_file" "$STATE_DIR/$(basename "$state_file")"
 	done
@@ -125,10 +125,10 @@ checkpoint_state() {
 	today=$(date +%F)
 	printf '%s\n' "$today" > "$PERSIST_DIR/date.tmp"
 	mv "$PERSIST_DIR/date.tmp" "$PERSIST_DIR/date"
-	for old_file in "$PERSIST_DIR"/profile-*.used "$PERSIST_DIR"/profile-*.bonus "$PERSIST_DIR"/profile-*.all_day; do
+	for old_file in "$PERSIST_DIR"/profile-*.used "$PERSIST_DIR"/profile-*.bonus "$PERSIST_DIR"/profile-*.all_day "$PERSIST_DIR"/device-*.used; do
 		[ -e "$old_file" ] && rm -f "$old_file"
 	done
-	for state_file in "$STATE_DIR"/profile-*.used "$STATE_DIR"/profile-*.bonus "$STATE_DIR"/profile-*.all_day; do
+	for state_file in "$STATE_DIR"/profile-*.used "$STATE_DIR"/profile-*.bonus "$STATE_DIR"/profile-*.all_day "$STATE_DIR"/device-*.used; do
 		[ -e "$state_file" ] || continue
 		base=$(basename "$state_file")
 		cp "$state_file" "$PERSIST_DIR/$base.tmp"
@@ -152,6 +152,30 @@ set_used() {
 	safe_id "$profile" || return 1
 	printf '%s\n' "$used" > "$STATE_DIR/profile-$profile.used.tmp"
 	mv "$STATE_DIR/profile-$profile.used.tmp" "$STATE_DIR/profile-$profile.used"
+}
+
+device_state_id() {
+	local mac
+	mac=$(normalize_mac "$1")
+	valid_mac "$mac" || return 1
+	printf '%s\n' "$mac" | tr -d ':'
+}
+
+get_device_used() {
+	local id used
+	id=$(device_state_id "$1") || { printf '0\n'; return; }
+	used=0
+	[ -r "$STATE_DIR/device-$id.used" ] && used=$(sed -n '1p' "$STATE_DIR/device-$id.used")
+	case "$used" in ''|*[!0-9]*) used=0 ;; esac
+	printf '%s\n' "$used"
+}
+
+set_device_used() {
+	local id used
+	id=$(device_state_id "$1") || return 1
+	used="$2"
+	printf '%s\n' "$used" > "$STATE_DIR/device-$id.used.tmp"
+	mv "$STATE_DIR/device-$id.used.tmp" "$STATE_DIR/device-$id.used"
 }
 
 get_bonus() {
@@ -231,14 +255,14 @@ profile_bedtime_active() {
 
 profile_reason() {
 	profile="$1"
+	config_get_bool profile_enabled "$profile" enabled 1
+	[ "$profile_enabled" -eq 1 ] || { printf 'disabled\n'; return; }
+
 	if profile_bedtime_active "$profile"; then
 		discard_time_credit "$profile"
 		printf 'bedtime\n'
 		return
 	fi
-
-	config_get_bool profile_enabled "$profile" enabled 1
-	[ "$profile_enabled" -eq 1 ] || { printf 'disabled\n'; return; }
 
 	config_get_bool manually_blocked "$profile" blocked 0
 	if [ "$manually_blocked" -eq 1 ]; then
@@ -374,6 +398,7 @@ apply_device() {
 apply_profile() {
 	profile="$1"
 	reason=$(profile_reason "$profile")
+	[ "$reason" != 'disabled' ] || return 0
 	config_list_foreach "$profile" device apply_device "$profile" "$reason"
 }
 
@@ -442,8 +467,34 @@ activity_path() {
 	local mac="$1"
 	local key="$2"
 	local id
-	id=$(normalize_mac "$mac" | tr -d ':')
+	id=$(device_state_id "$mac") || return 1
 	printf '%s/device-%s.activity-%s\n' "$STATE_DIR" "$id" "$key"
+}
+
+diagnostic_path() {
+	local id
+	id=$(device_state_id "$1") || return 1
+	printf '%s/device-%s.diagnostic-%s\n' "$STATE_DIR" "$id" "$2"
+}
+
+diagnostic_read() {
+	local path value
+	path=$(diagnostic_path "$1" "$2") || { printf '0\n'; return; }
+	value=0
+	[ -r "$path" ] && value=$(sed -n '1p' "$path")
+	case "$value" in ''|*[!0-9]*) value=0 ;; esac
+	printf '%s\n' "$value"
+}
+
+diagnostic_write() {
+	local path
+	path=$(diagnostic_path "$1" "$2") || return 1
+	printf '%s\n' "$3" > "$path.tmp"
+	mv "$path.tmp" "$path"
+}
+
+activity_log() {
+	log "$@"
 }
 
 activity_read() {
@@ -480,18 +531,24 @@ clear_device_activity() {
 
 start_activity_candidate() {
 	local mac="$1"
+	local profile="$2"
+	local bytes="$3"
 	clear_device_activity "$mac"
 	activity_write "$mac" candidate_started "$SAMPLE_NOW"
 	activity_write "$mac" candidate_elapsed "$SAMPLE_ELAPSED"
+	activity_log "activity candidate profile=$profile device=$mac bytes=$bytes"
 }
 
 add_profile_usage() {
 	local profile="$1"
-	local elapsed="$2"
-	local current
+	local mac="$2"
+	local elapsed="$3"
+	local current device_current
 	[ "$elapsed" -gt 0 ] || return
 	current=$(get_used "$profile")
 	set_used "$profile" $((current + elapsed))
+	device_current=$(get_device_used "$mac")
+	set_device_used "$mac" $((device_current + elapsed))
 }
 
 counter_bytes() {
@@ -512,16 +569,20 @@ sample_device() {
 	else
 		significant=0
 	fi
+	diagnostic_write "$mac" last_bytes "$bytes"
+	diagnostic_write "$mac" last_significant "$significant"
+	diagnostic_write "$mac" last_sample "$SAMPLE_NOW"
 
 	active=$(activity_read "$mac" active)
 	if [ "$active" -eq 1 ]; then
 		quiet_elapsed=$(activity_read "$mac" quiet_elapsed)
 		if [ "$significant" -eq 1 ]; then
-			add_profile_usage "$profile" $((quiet_elapsed + SAMPLE_ELAPSED))
+			add_profile_usage "$profile" "$mac" $((quiet_elapsed + SAMPLE_ELAPSED))
 			activity_remove "$mac" quiet_elapsed
 		else
 			quiet_elapsed=$((quiet_elapsed + SAMPLE_ELAPSED))
 			if [ "$quiet_elapsed" -ge "$ACTIVITY_IDLE_TIMEOUT" ]; then
+				activity_log "activity stopped profile=$profile device=$mac discarded_quiet_seconds=$quiet_elapsed"
 				clear_device_activity "$mac"
 			else
 				activity_write "$mac" quiet_elapsed "$quiet_elapsed"
@@ -532,23 +593,24 @@ sample_device() {
 
 	candidate_started=$(activity_read "$mac" candidate_started)
 	if [ "$candidate_started" -eq 0 ]; then
-		[ "$significant" -eq 0 ] || start_activity_candidate "$mac"
+		[ "$significant" -eq 0 ] || start_activity_candidate "$mac" "$profile" "$bytes"
 		return
 	fi
 
 	age=$((SAMPLE_NOW - candidate_started))
 	if [ "$age" -ge "$ACTIVITY_CONFIRM_WINDOW" ]; then
 		clear_device_activity "$mac"
-		[ "$significant" -eq 0 ] || start_activity_candidate "$mac"
+		[ "$significant" -eq 0 ] || start_activity_candidate "$mac" "$profile" "$bytes"
 		return
 	fi
 
 	candidate_elapsed=$(activity_read "$mac" candidate_elapsed)
 	candidate_elapsed=$((candidate_elapsed + SAMPLE_ELAPSED))
 	if [ "$significant" -eq 1 ]; then
-		add_profile_usage "$profile" "$candidate_elapsed"
+		add_profile_usage "$profile" "$mac" "$candidate_elapsed"
 		clear_device_activity "$mac"
 		activity_write "$mac" active 1
+		activity_log "activity started profile=$profile device=$mac accounted_seconds=$candidate_elapsed bytes=$bytes"
 	else
 		activity_write "$mac" candidate_elapsed "$candidate_elapsed"
 	fi
@@ -663,6 +725,42 @@ status_all() {
 	config_foreach status_profile profile
 }
 
+diagnostics_device() {
+	device="$1"
+	profile="$2"
+	mac=$(normalize_mac "$device")
+	valid_mac "$mac" || return
+	used=$(get_device_used "$mac")
+	active=$(activity_read "$mac" active)
+	candidate_started=$(activity_read "$mac" candidate_started)
+	candidate_elapsed=$(activity_read "$mac" candidate_elapsed)
+	quiet_elapsed=$(activity_read "$mac" quiet_elapsed)
+	last_bytes=$(diagnostic_read "$mac" last_bytes)
+	last_significant=$(diagnostic_read "$mac" last_significant)
+	last_sample=$(diagnostic_read "$mac" last_sample)
+	if [ "$active" -eq 1 ]; then
+		state=active
+	elif [ "$candidate_started" -gt 0 ]; then
+		state=candidate
+	else
+		state=idle
+	fi
+	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$profile" "$DIAGNOSTICS_PROFILE_NAME" "$mac" "$used" "$state" "$candidate_elapsed" "$quiet_elapsed" "$last_bytes" "$last_significant" "$last_sample"
+}
+
+diagnostics_profile() {
+	profile="$1"
+	config_get DIAGNOSTICS_PROFILE_NAME "$profile" name "$profile"
+	config_list_foreach "$profile" device diagnostics_device "$profile"
+}
+
+diagnostics_all() {
+	ensure_state
+	config_load owrtpc
+	printf 'profile\tname\tdevice\tused_seconds\tactivity_state\tcandidate_seconds\tquiet_seconds\tlast_bytes\tlast_significant\tlast_sample_epoch\n'
+	config_foreach diagnostics_profile profile
+}
+
 add_time() {
 	profile="$1"
 	seconds="$2"
@@ -714,10 +812,11 @@ case "${1:-}" in
 	init) initialize ;;
 	sample) sample_usage ;;
 	status) status_all ;;
+	diagnostics) diagnostics_all ;;
 	add-time) add_time "${2:-}" "${3:-}" ;;
 	validate) ensure_state; validate_config ;;
 	*)
-		echo "Usage: owrtpcctl {init|sample|apply|status|validate|checkpoint|add-time PROFILE SECONDS}" >&2
+		echo "Usage: owrtpcctl {init|sample|apply|status|diagnostics|validate|checkpoint|add-time PROFILE SECONDS}" >&2
 		exit 2
 		;;
 esac

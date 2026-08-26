@@ -55,6 +55,29 @@ rpc_status() {
 	rm -f "$status_file"
 }
 
+rpc_set_enabled() {
+	json_load "$1" || { rpc_error 'Invalid JSON request'; return; }
+	json_get_var profile profile
+	json_get_var enabled enabled
+	safe_profile "$profile" || { rpc_error 'Unknown profile'; return; }
+	case "$enabled" in
+		1|true) value=1 ;;
+		0|false) value=0 ;;
+		*) rpc_error 'enabled must be a boolean'; return ;;
+	esac
+	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
+	uci set "owrtpc.$profile.enabled=$value"
+	uci commit owrtpc
+	if "$OWRTPCCTL" apply; then
+		json_init
+		json_add_boolean success 1
+		json_add_boolean enabled "$value"
+		json_dump
+	else
+		rpc_error 'Policy refresh failed'
+	fi
+}
+
 rpc_set_block() {
 	json_load "$1" || { rpc_error 'Invalid JSON request'; return; }
 	json_get_var profile profile
@@ -133,6 +156,10 @@ case "$1" in
 	list)
 		json_init
 		json_add_object status; json_close_object
+		json_add_object set_enabled
+		json_add_string profile String
+		json_add_string enabled Boolean
+		json_close_object
 		json_add_object set_block
 		json_add_string profile String
 		json_add_string blocked Boolean
@@ -149,6 +176,7 @@ case "$1" in
 		read -r request
 		case "$2" in
 			status) rpc_status ;;
+			set_enabled) rpc_set_enabled "$request" ;;
 			set_block) rpc_set_block "$request" ;;
 			add_time) rpc_add_time "$request" ;;
 			refresh) rpc_refresh ;;

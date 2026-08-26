@@ -10,7 +10,7 @@
 		},
 		"write": {
 			"ubus": {
-				"owrtpc": [ "add_time", "set_block", "refresh" ],
+				"owrtpc": [ "add_time", "set_enabled", "set_block", "refresh" ],
 				"uci": [ "add", "apply", "confirm", "delete", "order", "rename", "set" ]
 			},
 			"uci": [ "owrtpc" ]

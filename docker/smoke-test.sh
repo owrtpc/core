@@ -48,6 +48,9 @@ $COMPOSE exec -T router sh -ec '
 	printf "%s\n" "$refresh" | grep -q "\"success\": true"
 	status=$(ubus -s /var/run/ubus/ubus.sock call owrtpc status)
 	printf "%s\n" "$status" | grep -q "\"section\": \"docker_test\""
+	diagnostics=$(/usr/sbin/owrtpcctl diagnostics)
+	printf "%s\n" "$diagnostics" | grep -q "used_seconds.*activity_state.*last_bytes"
+	printf "%s\n" "$diagnostics" | grep -q "docker_test.*02:42:AC:11:00:02"
 	bonus=$(ubus -s /var/run/ubus/ubus.sock call owrtpc add_time "{\"profile\":\"docker_test\",\"minutes\":240}")
 	printf "%s\n" "$bonus" | grep -q "\"added_seconds\": 14400"
 	bonus=$(ubus -s /var/run/ubus/ubus.sock call owrtpc add_time "{\"profile\":\"docker_test\",\"minutes\":60}")
@@ -70,6 +73,22 @@ $COMPOSE exec -T router sh -ec '
 	case "$rules" in *owrtpc-device:02:42:AC:11:00:02*) ;; *) exit 1 ;; esac
 	toggle=$(ubus -s /var/run/ubus/ubus.sock call owrtpc set_block "{\"profile\":\"docker_test\",\"blocked\":true}")
 	printf "%s\n" "$toggle" | grep -q "\"success\": true"
+	rules=$(nft list table inet owrtpc)
+	case "$rules" in *owrtpc-block:manual:02:42:AC:11:00:02*) ;; *) exit 1 ;; esac
+	uci set owrtpc.docker_test.bedtime_start=00:00
+	uci set owrtpc.docker_test.bedtime_end=23:59
+	uci commit owrtpc
+	toggle=$(ubus -s /var/run/ubus/ubus.sock call owrtpc set_enabled "{\"profile\":\"docker_test\",\"enabled\":false}")
+	printf "%s\n" "$toggle" | grep -q "\"enabled\": false"
+	uci -q get owrtpc.docker_test.enabled | grep -q "^0$"
+	rules=$(nft list table inet owrtpc)
+	case "$rules" in *02:42:AC:11:00:02*) exit 1 ;; esac
+	uci -q delete owrtpc.docker_test.bedtime_start
+	uci -q delete owrtpc.docker_test.bedtime_end
+	uci commit owrtpc
+	toggle=$(ubus -s /var/run/ubus/ubus.sock call owrtpc set_enabled "{\"profile\":\"docker_test\",\"enabled\":true}")
+	printf "%s\n" "$toggle" | grep -q "\"enabled\": true"
+	uci -q get owrtpc.docker_test.enabled | grep -q "^1$"
 	rules=$(nft list table inet owrtpc)
 	case "$rules" in *owrtpc-block:manual:02:42:AC:11:00:02*) ;; *) exit 1 ;; esac
 '

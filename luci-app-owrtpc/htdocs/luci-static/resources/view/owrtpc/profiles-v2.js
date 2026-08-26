@@ -7,6 +7,7 @@
 'require owrtpc.devices as devices';
 
 var callStatus = rpc.declare({ object: 'owrtpc', method: 'status', expect: { '': {} } });
+var callSetEnabled = rpc.declare({ object: 'owrtpc', method: 'set_enabled', params: [ 'profile', 'enabled' ], expect: { '': {} } });
 var callSetBlock = rpc.declare({ object: 'owrtpc', method: 'set_block', params: [ 'profile', 'blocked' ], expect: { '': {} } });
 var callAddTime = rpc.declare({ object: 'owrtpc', method: 'add_time', params: [ 'profile', 'minutes' ], expect: { '': {} } });
 var callRefresh = rpc.declare({ object: 'owrtpc', method: 'refresh', expect: { '': {} } });
@@ -110,13 +111,17 @@ function validateTime(value, example) {
 		_('Use HH:MM, for example %s.').format(example);
 }
 
-function reloadWithNotification(message) {
+function queueNotification(message) {
 	try {
 		window.sessionStorage.setItem('owrtpc-notification', message);
 	}
 	catch (error) {
 		ui.addNotification(null, E('p', {}, message), 'info');
 	}
+}
+
+function reloadWithNotification(message) {
+	queueNotification(message);
 	window.location.reload();
 }
 
@@ -131,14 +136,26 @@ function showQueuedNotification() {
 		ui.addNotification(null, E('p', {}, message), 'info');
 }
 
-function runQuickAction(button, request, successMessage) {
-	button.disabled = true;
+function setQuickActionDisabled(control, disabled) {
+	control.disabled = disabled;
+	if (disabled) {
+		control.setAttribute('disabled', '');
+		control.setAttribute('aria-disabled', 'true');
+	}
+	else {
+		control.removeAttribute('disabled');
+		control.removeAttribute('aria-disabled');
+	}
+}
+
+function runQuickAction(control, request, successMessage) {
+	setQuickActionDisabled(control, true);
 	return request.then(function(result) {
 		if (!result.success)
 			throw new Error(result.error || _('The quick action failed.'));
 		reloadWithNotification(successMessage);
 	}).catch(function(error) {
-		button.disabled = false;
+		setQuickActionDisabled(control, false);
 		ui.addNotification(null, E('p', {}, error.message), 'error');
 	});
 }
@@ -155,6 +172,14 @@ return view.extend({
 
 	render: function(data) {
 		window.setTimeout(showQueuedNotification, 0);
+		document.addEventListener('uci-applied', function() {
+			callRefresh().then(function(result) {
+				if (!result.success)
+					ui.addNotification(null, E('p', {}, result.error || _('Configuration was applied but policy refresh failed.')), 'warning');
+			}).catch(function(error) {
+				ui.addNotification(null, E('p', {}, error.message), 'warning');
+			});
+		}, { once: true });
 		var status = {};
 		(data[2].profiles || []).forEach(function(profile) { status[profile.section] = profile; });
 		var leases = (data[3].dhcp_leases || []).concat(data[3].dhcp6_leases || []);
@@ -207,7 +232,8 @@ return view.extend({
 		o.rmempty = true;
 		o.description = _('Optional Linux device names used when no logical OpenWrt network exists, mainly for testing.');
 
-		var s = m.section(form.GridSection, 'profile', _('Profiles'));
+		var s = m.section(form.GridSection, 'profile', _('Profiles'),
+			_('Save closes the profile dialog and stages its changes. Use Save & Apply to make all pending changes permanent.'));
 		s.anonymous = true;
 		s.addremove = true;
 		s.sortable = true;
@@ -325,42 +351,80 @@ return view.extend({
 			var actions = form.GridSection.prototype.renderRowActions.call(gridSection, sectionId, _('Edit'));
 			var profile = status[sectionId] || {};
 			var profileName = profile.name || uci.get('owrtpc', sectionId, 'name') || sectionId;
+			var isEnabled = uci.get('owrtpc', sectionId, 'enabled') !== '0';
 			var isBlocked = profile.manual_blocked === true;
-			var timeActionsDisabled = [ 'disabled', 'manual', 'bedtime' ].indexOf(profile.reason) !== -1;
+			var timeActionsDisabled = !isEnabled || isBlocked || profile.reason === 'bedtime';
 			var disabledTitle = profile.reason === 'bedtime' ? _('Extra time is unavailable during bedtime') :
-				profile.reason === 'manual' ? _('Unblock the profile before adding extra time') :
+				isBlocked ? _('Unblock the profile before adding extra time') :
 				_('Enable the profile before adding extra time');
-			var buttons = [
-				[ 60, '+1h' ],
-				[ 240, '+4h' ],
-				[ 'all-day', 'All Day' ]
-			].map(function(increment) {
-				var isAllDay = increment[0] === 'all-day';
-				var title = timeActionsDisabled ? disabledTitle : isAllDay ?
-					_('Allow unlimited time until bedtime or the end of today') :
-					_('Set today\'s extra time to %s').format(increment[1].substring(1));
-				return E('button', {
-					'class': 'cbi-button cbi-button-action',
-					'disabled': timeActionsDisabled ? '' : null,
-					'title': title,
-					'click': function(event) {
-						event.preventDefault();
-						var successMessage = isAllDay ?
-							_('Profile "%s" has unlimited time until bedtime or the end of today.').format(profileName) :
-							_('Extra time for profile "%s" set to %s.').format(profileName, increment[1].substring(1));
-						return runQuickAction(event.currentTarget, callAddTime(sectionId, increment[0]), successMessage);
-					}
-				}, increment[1]);
-			});
-			buttons.push(E('button', {
-				'class': 'cbi-button cbi-button-%s'.format(isBlocked ? 'positive' : 'negative'),
-				'title': isBlocked ? _('Remove the manual block') : _('Block this profile immediately'),
+			var timeChoices = {
+				'60': '+1h',
+				'240': '+4h',
+				'all-day': _('All Day')
+			};
+			var executeTimeAction = function(control, value) {
+				if (timeActionsDisabled || control.hasAttribute('disabled'))
+					return Promise.resolve();
+				var isAllDay = value === 'all-day';
+				var label = timeChoices[value];
+				var successMessage = isAllDay ?
+					_('Profile "%s" has unlimited time until bedtime or the end of today.').format(profileName) :
+					_('Extra time for profile "%s" set to %s.').format(profileName, label.substring(1));
+				return runQuickAction(control, callAddTime(sectionId, value), successMessage);
+			};
+			var timeButton = new ui.ComboButton('60', timeChoices, {
+				sort: [ '60', '240', 'all-day' ],
+				classes: {
+					'60': 'btn cbi-button cbi-button-action',
+					'240': 'btn cbi-button cbi-button-action',
+					'all-day': 'btn cbi-button cbi-button-action'
+				},
+				click: function(event, value) {
+					event.preventDefault();
+					return executeTimeAction(this, value);
+				}
+			}).render();
+			timeButton.title = timeActionsDisabled ? disabledTitle : _('Add time to this profile');
+			if (timeActionsDisabled) {
+				setQuickActionDisabled(timeButton, true);
+				timeButton.addEventListener('click', function(event) {
+					event.preventDefault();
+					event.stopImmediatePropagation();
+				}, true);
+			}
+			else {
+				timeButton.addEventListener('cbi-dropdown-change', function(event) {
+					var choice = event.detail && event.detail.value;
+					if (choice && choice.value != null)
+						executeTimeAction(timeButton, String(choice.value));
+				});
+			}
+
+			var enabledButton = E('button', {
+				'class': 'cbi-button cbi-button-%s'.format(isEnabled ? 'negative' : 'positive'),
+				'title': isEnabled ? _('Disable this profile') : _('Enable this profile'),
 				'click': function(event) {
 					event.preventDefault();
+					return runQuickAction(event.currentTarget, callSetEnabled(sectionId, !isEnabled),
+						isEnabled ? _('Profile "%s" disabled.').format(profileName) : _('Profile "%s" enabled.').format(profileName));
+				}
+			}, isEnabled ? _('Disable') : _('Enable'));
+
+			var blockButton = E('button', {
+				'class': 'cbi-button cbi-button-%s'.format(isBlocked ? 'positive' : 'negative'),
+				'disabled': !isEnabled ? '' : null,
+				'title': !isEnabled ? _('Enable the profile before changing its block state') :
+					isBlocked ? _('Remove the manual block') : _('Block this profile immediately'),
+				'click': function(event) {
+					event.preventDefault();
+					if (!isEnabled)
+						return;
 					return runQuickAction(event.currentTarget, callSetBlock(sectionId, !isBlocked),
 						isBlocked ? _('Profile "%s" unblocked.').format(profileName) : _('Profile "%s" blocked.').format(profileName));
 				}
-			}, isBlocked ? _('Unblock') : _('Block')));
+			}, isBlocked ? _('Unblock') : _('Block'));
+
+			var buttons = [ timeButton, enabledButton, blockButton ];
 			var container = actions.querySelector('div');
 			if (container) {
 				var dragHandle = container.querySelector('.drag-handle');
@@ -370,12 +434,6 @@ return view.extend({
 			return actions;
 		};
 
-		m.on_after_commit = function() {
-			return callRefresh().then(function(result) {
-				if (!result.success)
-					ui.addNotification(null, E('p', {}, result.error || _('Configuration was saved but policy refresh failed.')), 'warning');
-			});
-		};
 		return m.render();
 	}
 });

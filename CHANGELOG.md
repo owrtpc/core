@@ -34,3 +34,12 @@ project intends to follow [Semantic Versioning](https://semver.org/).
   Unlimited profiles skip session calculations entirely.
 - A 128 KiB default activity threshold with automatic migration from the former
   1 KiB default and optional per-profile sensitivity presets.
+- Per-device diagnostic usage attribution, activity-state snapshots and
+  low-volume session transition logging; profile enforcement remains cumulative.
+- Native LuCI time-action ComboButton and immediate Enable/Disable profile action.
+- Disabled profiles now bypass bedtime, quota and manual blocking completely and
+  do not reserve their devices during firewall-policy generation.
+- Selecting a ComboButton time choice executes it immediately.
+- Profile dialogs now use the standard LuCI staged-change workflow: Save records
+  pending UCI changes, the native Unsaved Changes indicator tracks them, and
+  Save & Apply commits them permanently.
