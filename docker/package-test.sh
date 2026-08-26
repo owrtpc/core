@@ -3,8 +3,10 @@
 # Container-only test. /project is mounted read-only; never run on a router.
 set -eu
 mode=$1
-backend=/packages/owrtpc-0.1.0_alpha1-r22.apk
-frontend=/packages/luci-app-owrtpc-0.1.0_alpha1-r22.apk
+version=$(sed -n 's/^PKG_VERSION:=//p' /project/owrtpc/Makefile)
+release=$(sed -n 's/^PKG_RELEASE:=//p' /project/owrtpc/Makefile)
+backend=/packages/owrtpc-$version-r$release.apk
+frontend=/packages/luci-app-owrtpc-$version-r$release.apk
 legacy=/legacy/luci-app-owrtpc-0.1.0_alpha1-r20.apk
 [ -f /.dockerenv ] || { echo 'Docker only' >&2; exit 1; }
 # Fail early if the host cannot exercise the real firewall (e.g. QEMU user mode).
@@ -29,9 +31,20 @@ if [ "$mode" = headless ]; then
 	! apk info -e luci-base
 	[ ! -e /www/luci-static/resources/luci.js ]
 fi
-if [ "$mode" = upgrade ]; then
-	apk --keys-dir /project/keys verify "$legacy"
-	apk --allow-untrusted add "$legacy"
+if [ "$mode" = upgrade ] || [ "$mode" = split-upgrade ]; then
+	if [ "$mode" = upgrade ]; then
+		apk --keys-dir /project/keys verify "$legacy"
+		apk --allow-untrusted add "$legacy"
+	else
+		for name in owrtpc luci-app-owrtpc; do
+			apk --keys-dir /project/keys verify "/legacy/$name-0.1.0_alpha1-r22.apk"
+			apk --allow-untrusted add "/legacy/$name-0.1.0_alpha1-r22.apk"
+		done
+		# The reset UI must not install against a backend without reset support.
+		if apk --allow-untrusted add "$frontend"; then
+			echo 'FAIL: r23 frontend accepted r22 backend' >&2; exit 1
+		fi
+	fi
 	uci set owrtpc.main.sample_interval=3600
 	uci set owrtpc.main.activity_threshold_bytes=262144
 	uci set owrtpc.preserved=profile
@@ -48,12 +61,14 @@ if [ "$mode" = upgrade ]; then
 	printf '123\n' > /tmp/owrtpc/device-02_11_22_33_44_55.used
 	owrtpcctl checkpoint
 	cp /etc/config/owrtpc /tmp/expected-config
-	# Unsafe direct installation must be rejected before changing files.
-	if apk --allow-untrusted add "$backend"; then
-		echo 'FAIL: backend accepted the legacy file owner' >&2; exit 1
+	if [ "$mode" = upgrade ]; then
+		# Unsafe direct installation must be rejected before changing files.
+		if apk --allow-untrusted add "$backend"; then
+			echo 'FAIL: backend accepted the legacy file owner' >&2; exit 1
+		fi
+		cmp /etc/config/owrtpc /tmp/expected-config
+		sh /project/scripts/migrate-monolith.sh prepare
 	fi
-	cmp /etc/config/owrtpc /tmp/expected-config
-	sh /project/scripts/migrate-monolith.sh prepare
 	cmp /etc/config/owrtpc /tmp/expected-config
 else
 	if apk --allow-untrusted add "$frontend"; then
@@ -66,7 +81,7 @@ apk info --who-owns /usr/libexec/rpcd/owrtpc | grep -q 'owrtpc-'
 apk info --who-owns /usr/share/rpcd/acl.d/owrtpc.json | grep -q 'owrtpc-'
 grep -qx '/etc/config/owrtpc' /lib/apk/packages/owrtpc.conffiles
 grep -qx '/etc/owrtpc/state/' /lib/upgrade/keep.d/owrtpc
-if [ "$mode" = upgrade ]; then
+if [ "$mode" = upgrade ] || [ "$mode" = split-upgrade ]; then
 	cmp /etc/config/owrtpc /tmp/expected-config
 	[ "$(cat /tmp/owrtpc/profile-preserved.used)" = 321 ]
 	[ "$(cat /etc/owrtpc/state/profile-preserved.used)" = 321 ]
@@ -112,6 +127,7 @@ check_access() {
 }
 check_access ubus owrtpc status
 check_access ubus owrtpc set_block
+check_access ubus owrtpc reset
 check_access ubus luci-rpc getHostHints
 check_access uci owrtpc write
 if check_access uci firewall write; then
@@ -149,4 +165,132 @@ if [ "$mode" != headless ]; then
 	check_access uci owrtpc write
 	sh /project/docker/policy-test.sh
 fi
+
+# Reset is a backend operation, tested after removing the UI and on a fully
+# headless system as well. Keep identifiers/MACs unchanged to catch resurrection.
+uci set owrtpc.reset_test=profile
+uci set owrtpc.reset_test.name='Reset fixture'
+uci set owrtpc.reset_test.enabled=1
+uci set owrtpc.reset_test.blocked=1
+uci set owrtpc.reset_test.daily_minutes=60
+uci add_list owrtpc.reset_test.device=02:11:22:33:44:56
+uci commit owrtpc
+/etc/init.d/owrtpc restart
+owrtpcctl init
+printf '321\n' > /tmp/owrtpc/profile-reset_test.used
+printf '3600\n' > /tmp/owrtpc/profile-reset_test.bonus
+printf '1\n' > /tmp/owrtpc/profile-reset_test.all_day
+printf '123\n' > /tmp/owrtpc/device-02_11_22_33_44_56.used
+printf '1\n' > /tmp/owrtpc/device-02_11_22_33_44_56.activity-active
+owrtpcctl checkpoint
+nft list table inet owrtpc | grep -q owrtpc-block:manual
+cp /etc/config/owrtpc /tmp/reset-before-config
+if owrtpcctl reset; then
+	echo 'FAIL: CLI reset accepted missing confirmation' >&2; exit 1
+fi
+for request in '{}' '{"confirmation":"RESET"}' '{"confirmation":true}'; do
+	ubus call owrtpc reset "$request" | jsonfilter -e '@.success' | grep -qx false
+done
+cmp /etc/config/owrtpc /tmp/reset-before-config
+[ "$(cat /tmp/owrtpc/profile-reset_test.used)" = 321 ]
+mkdir /var/lock/owrtpc-action.lock
+ubus call owrtpc reset '{"confirmation":"RESET OWRTPC"}' | jsonfilter -e '@.error' | grep -q 'OWRTPC is busy'
+rmdir /var/lock/owrtpc-action.lock
+cmp /etc/config/owrtpc /tmp/reset-before-config
+mv /etc/owrtpc/state /etc/owrtpc/state.saved
+ln -s /etc/owrtpc/state.saved /etc/owrtpc/state
+ubus call owrtpc reset '{"confirmation":"RESET OWRTPC"}' | jsonfilter -e '@.error' | grep -q 'symlinked'
+rm /etc/owrtpc/state
+mv /etc/owrtpc/state.saved /etc/owrtpc/state
+cmp /etc/config/owrtpc /tmp/reset-before-config
+
+# A read-only login must not acquire the destructive method.
+uci set rpcd.reset_reader=login
+uci set rpcd.reset_reader.username=owrtpc-reader
+uci set rpcd.reset_reader.password='$p$root'
+uci add_list rpcd.reset_reader.read=owrtpc
+uci commit rpcd
+/etc/init.d/rpcd restart
+ubus -t 30 wait_for session owrtpc
+session=$(ubus call session login '{"username":"owrtpc-reader","password":"owrtpc"}' | jsonfilter -e '@.ubus_rpc_session')
+check_access ubus owrtpc status
+if check_access ubus owrtpc reset; then
+	echo 'FAIL: read-only user may reset' >&2; exit 1
+fi
+session=$(ubus call session login '{"username":"owrtpc-test","password":"owrtpc"}' | jsonfilter -e '@.ubus_rpc_session')
+check_access ubus owrtpc reset
+ubus call uci set "{\"ubus_rpc_session\":\"$session\",\"config\":\"owrtpc\",\"section\":\"main\",\"values\":{\"enabled\":\"0\"}}"
+ubus call owrtpc reset '{"confirmation":"RESET OWRTPC"}' | jsonfilter -e '@.error' | grep -q 'pending OWRTPC changes'
+cmp /etc/config/owrtpc /tmp/reset-before-config
+/etc/init.d/owrtpc running
+ubus call uci revert "{\"ubus_rpc_session\":\"$session\",\"config\":\"owrtpc\"}"
+mkdir -p /var/run/rpcd/snapshot-files
+cp /etc/config/owrtpc /var/run/rpcd/snapshot-files/owrtpc
+ubus call owrtpc reset '{"confirmation":"RESET OWRTPC"}' | jsonfilter -e '@.error' | grep -q 'pending OWRTPC changes'
+rm /var/run/rpcd/snapshot-files/owrtpc
+# Missing packaged defaults must fail without stopping or deleting anything.
+mv /usr/share/owrtpc/defaults/owrtpc /usr/share/owrtpc/defaults/owrtpc.saved
+ubus call owrtpc reset '{"confirmation":"RESET OWRTPC"}' | jsonfilter -e '@.success' | grep -qx false
+mv /usr/share/owrtpc/defaults/owrtpc.saved /usr/share/owrtpc/defaults/owrtpc
+cmp /etc/config/owrtpc /tmp/reset-before-config
+/etc/init.d/owrtpc running
+
+# Preserve router settings, discoveries, signing keys and explicit backups.
+mkdir -p /root/owrtpc-migration-test
+printf 'keep backup\n' > /root/owrtpc-migration-test/config
+printf 'config client preserved\n' > /etc/config/gl-client
+if [ ! -e /etc/config/network ]; then printf 'config interface preserved\n' > /etc/config/network; fi
+if [ ! -e /etc/config/wireless ]; then printf 'config wifi-device preserved\n' > /etc/config/wireless; fi
+sha256sum /etc/config/firewall /etc/config/network /etc/config/wireless /etc/config/dhcp \
+	/etc/config/rpcd /etc/config/gl-client /etc/shadow /etc/apk/keys/* \
+	/root/owrtpc-migration-test/config > /tmp/reset-unrelated.sha256
+nft add table inet reset_unrelated
+nft add chain inet reset_unrelated preserved
+ubus call owrtpc reset '{"confirmation":"RESET OWRTPC"}' | jsonfilter -e '@.success' | grep -qx true
+cmp /etc/config/owrtpc /usr/share/owrtpc/defaults/owrtpc
+sha256sum -c /tmp/reset-unrelated.sha256
+nft list chain inet reset_unrelated preserved >/dev/null
+nft list table inet owrtpc > /tmp/reset-rules
+if grep -q 'owrtpc-block:\|owrtpc-device:' /tmp/reset-rules; then
+	echo 'FAIL: old reset rules remain' >&2; exit 1
+fi
+/etc/init.d/owrtpc running
+owrtpcctl validate | grep -qx OK
+! uci show owrtpc | grep -q '=profile'
+for dir in /tmp/owrtpc /etc/owrtpc/state; do
+	[ ! -e "$dir/profile-reset_test.used" ]
+	[ ! -e "$dir/profile-reset_test.bonus" ]
+	[ ! -e "$dir/profile-reset_test.all_day" ]
+	[ ! -e "$dir/device-02_11_22_33_44_56.used" ]
+	[ ! -e "$dir/device-02_11_22_33_44_56.activity-active" ]
+done
+# Reusing the exact section/MAC and restarting must not revive today's data.
+uci set owrtpc.reset_test=profile
+uci set owrtpc.reset_test.name='New profile'
+uci set owrtpc.reset_test.daily_minutes=60
+uci add_list owrtpc.reset_test.device=02:11:22:33:44:56
+uci commit owrtpc
+/etc/init.d/owrtpc restart
+owrtpcctl init
+ubus call owrtpc status | jsonfilter -e '@.profiles[0].used_seconds' | grep -qx 0
+ubus call owrtpc status | jsonfilter -e '@.profiles[0].bonus_seconds' | grep -qx 0
+owrtpcctl diagnostics | grep -q '02:11:22:33:44:56.*0'
+if [ "$mode" = clean ]; then
+	# A post-deletion error must report partial failure, never false success.
+	mkdir /tmp/reset-failbin
+	printf '#!/bin/sh\nexit 1\n' > /tmp/reset-failbin/nft
+	chmod 0755 /tmp/reset-failbin/nft
+	if PATH="/tmp/reset-failbin:$PATH" owrtpcctl reset --confirm > /tmp/reset-failure 2>&1; then
+		echo 'FAIL: reset succeeded despite failed firewall initialization' >&2; exit 1
+	fi
+	grep -q 'Data was reset, but OWRTPC policy initialization failed' /tmp/reset-failure
+	! /etc/init.d/owrtpc running
+	cmp /etc/config/owrtpc /usr/share/owrtpc/defaults/owrtpc
+fi
+# Reset must also recover missing/broken active configuration, via CLI.
+printf 'invalid UCI input\n' > /etc/config/owrtpc
+owrtpcctl reset --confirm
+cmp /etc/config/owrtpc /usr/share/owrtpc/defaults/owrtpc
+/etc/init.d/owrtpc running
+echo 'PASS: full reset, confirmation, ACLs, staged changes, preserved router data and restart'
 echo "PASS: package lifecycle $mode"

@@ -6,6 +6,27 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0_alpha1-r23] - 2026-08-26
+
+### Added
+
+- Full OWRTPC reset on the main LuCI page, using the standard modal and
+  destructive button style, typed confirmation and write-only RPC permission.
+- Backend `reset` RPC and `owrtpcctl reset --confirm`: stop accounting, drain
+  engine operations, clear profiles/counters/bonuses, restore shipped defaults,
+  replace only OWRTPC firewall rules and restart the service without a reboot.
+- Reject missing confirmation, concurrent resets, pending OWRTPC UCI changes,
+  active OWRTPC rollback snapshots and symlinked state directories. Keep router
+  configuration, discovery sources, signing keys, backups and system logs.
+- Tests for cancellation, permissions, errors, actual headless reset and state
+  not returning after a same-day service restart.
+
+### Fixed
+
+- Replace OWRTPC's nftables table in one atomic batch, avoiding a transient
+  missing policy during reset/startup and retaining the old policy on failure.
+  Generated parental-control rules and accounting decisions are unchanged.
+
 ## [0.1.0_alpha1-r22] - unreleased
 
 ### Changed

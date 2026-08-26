@@ -63,6 +63,8 @@ sh docker/test-packages.sh
 The suite creates disposable containers without published ports. It checks
 clean install, headless operation after removal of `luci-base`, API discovery,
 restricted ACLs, and migration from `dist/luci-app-owrtpc-0.1.0_alpha1-r20.apk`.
+It also upgrades the signed split r22 pair and exercises full reset, including
+confirmation/permission failures, pending UCI edits and same-day restart.
 It verifies that removing the UI leaves the backend PID unchanged and exercises
 the same nftables policy checks as the UI smoke test. Normal APK dependency and
 file ownership checks remain enabled; only temporary unsigned test APKs use
@@ -77,3 +79,6 @@ the test if functionality breaks. No hardware forwarding, Wi-Fi or physical
 router behavior is claimed by these tests.
 
 The development UI port is bound to `127.0.0.1`, since its test password is public.
+The overlay uses procd to manage OWRTPC, including reset stop/start. A full reset
+restores the shipped `wan`/`wan6` defaults; Docker has no netifd, so restore
+`monitored_device=eth0` in the test configuration before testing traffic again.

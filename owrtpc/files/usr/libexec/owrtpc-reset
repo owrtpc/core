@@ -1,0 +1,85 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Fixed paths only. Invoked by owrtpcctl or the authenticated OWRTPC RPC.
+set -eu
+
+die() { echo "$*" >&2; exit 1; }
+[ "$#" -eq 1 ] && [ "$1" = '--confirm' ] ||
+	die 'Reset requires explicit confirmation: owrtpcctl reset --confirm'
+[ "$(id -u)" = 0 ] || die 'Reset requires root.'
+. /usr/share/owrtpc/lock.sh
+
+action_locked=0
+engine_locked=0
+staged=''
+restart_on_failure=0
+reset_started=0
+cleanup() {
+	[ -z "$staged" ] || rm -f "$staged"
+	[ "$engine_locked" -eq 0 ] || rmdir "$OWRTPC_ENGINE_LOCK"
+	[ "$action_locked" -eq 0 ] || rmdir "$OWRTPC_ACTION_LOCK"
+	if [ "$restart_on_failure" -eq 1 ] && [ "$reset_started" -eq 0 ]; then
+		/etc/init.d/owrtpc start >&2 || true
+	fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+# Do not queue a second destructive request behind a reset already in progress.
+owrtpc_lock "$OWRTPC_ACTION_LOCK" 1 || exit 1
+action_locked=1
+
+check_pending() {
+	# Never discard another session's edits or an apply/rollback snapshot.
+	# These are rpcd's standard UCI savedirs, also used without LuCI.
+	for pending in /tmp/.uci/owrtpc /var/run/rpcd/uci-*/owrtpc \
+		/var/run/rpcd/snapshot-files/owrtpc /var/run/rpcd/snapshot-delta/owrtpc; do
+		[ ! -s "$pending" ] ||
+			die 'Apply or discard pending OWRTPC changes in all sessions before resetting; wait for any apply confirmation to finish.'
+	done
+}
+check_pending
+defaults=/usr/share/owrtpc/defaults/owrtpc
+[ -s "$defaults" ] || die 'Packaged OWRTPC defaults are missing; reinstall the backend.'
+uci -c /usr/share/owrtpc/defaults -q show owrtpc >/dev/null ||
+	die 'Packaged OWRTPC defaults are invalid; reinstall the backend.'
+for dir in /etc/owrtpc /etc/owrtpc/state /tmp/owrtpc; do
+	[ ! -L "$dir" ] || die 'Refusing to reset a symlinked OWRTPC data directory.'
+done
+# Stage a complete new config on the same filesystem before stopping anything.
+staged=$(mktemp /etc/config/.owrtpc-reset.XXXXXX)
+cp "$defaults" "$staged"
+chmod 0600 "$staged"
+
+if /etc/init.d/owrtpc running >/dev/null 2>&1; then restart_on_failure=1; fi
+/etc/init.d/owrtpc stop || die 'Unable to stop OWRTPC; reset was not performed.'
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+	if ! pidof owrtpcd >/dev/null; then break; fi
+	sleep 1
+done
+! pidof owrtpcd >/dev/null || die 'OWRTPC is still running; reset was not performed.'
+owrtpc_lock "$OWRTPC_ENGINE_LOCK" || exit 1
+engine_locked=1
+check_pending
+
+# The daemon has finished its last checkpoint and all engine readers/writers
+# are excluded. Remove only OWRTPC-owned state, never router config or backups.
+reset_started=1
+rm -rf /tmp/owrtpc /etc/owrtpc/state ||
+	die 'State cleanup failed; OWRTPC remains stopped. Do not assume reset completed.'
+mv -f "$staged" /etc/config/owrtpc
+staged=''
+rm -f /etc/config/owrtpc.apk-new /etc/config/owrtpc.apk-old
+rmdir "$OWRTPC_ENGINE_LOCK"
+engine_locked=0
+
+# init replaces only table inet owrtpc, so stale blocking rules disappear
+# without restarting the router firewall or interrupting other services.
+/usr/sbin/owrtpcctl init || die 'Data was reset, but OWRTPC policy initialization failed; service remains stopped.'
+/etc/init.d/owrtpc enable
+/etc/init.d/owrtpc start || die 'Data was reset, but the OWRTPC service could not start.'
+for attempt in 1 2 3 4 5; do
+	if /etc/init.d/owrtpc running; then exit 0; fi
+	sleep 1
+done
+die 'Data was reset, but the OWRTPC service is not running. Check the system log.'

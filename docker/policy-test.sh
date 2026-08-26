@@ -48,6 +48,22 @@ set -eu
 	printf "%s\n" "$toggle" | grep -q "\"success\": true"
 	rules=$(nft list table inet owrtpc)
 	case "$rules" in *owrtpc-block:manual:02:42:AC:11:00:02*) ;; *) exit 1 ;; esac
+	# A failed atomic refresh must retain the previous installed policy.
+	nft -s list table inet owrtpc > /tmp/owrtpc-policy-before
+	cat > /tmp/owrtpc-failing-nft <<'EOF'
+#!/bin/sh
+if [ "$1" != -f ]; then exec /usr/sbin/nft "$@"; fi
+cp "$2" /tmp/owrtpc-invalid-rules
+printf 'invalid nftables directive\n' >> /tmp/owrtpc-invalid-rules
+exec /usr/sbin/nft -f /tmp/owrtpc-invalid-rules
+EOF
+	chmod 0755 /tmp/owrtpc-failing-nft
+	if OWRTPC_NFT_BIN=/tmp/owrtpc-failing-nft owrtpcctl apply; then
+		echo 'FAIL: invalid policy was accepted' >&2; exit 1
+	fi
+	nft -s list table inet owrtpc > /tmp/owrtpc-policy-after
+	cmp /tmp/owrtpc-policy-before /tmp/owrtpc-policy-after
+	rm -f /tmp/owrtpc-failing-nft /tmp/owrtpc-invalid-rules /tmp/owrtpc-policy-before /tmp/owrtpc-policy-after
 	uci set owrtpc.docker_test.bedtime_start=00:00
 	uci set owrtpc.docker_test.bedtime_end=23:59
 	uci commit owrtpc

@@ -11,6 +11,8 @@ var callSetEnabled = rpc.declare({ object: 'owrtpc', method: 'set_enabled', para
 var callSetBlock = rpc.declare({ object: 'owrtpc', method: 'set_block', params: [ 'profile', 'blocked' ], expect: { '': {} } });
 var callAddTime = rpc.declare({ object: 'owrtpc', method: 'add_time', params: [ 'profile', 'minutes' ], expect: { '': {} } });
 var callRefresh = rpc.declare({ object: 'owrtpc', method: 'refresh', expect: { '': {} } });
+var callFullReset = rpc.declare({ object: 'owrtpc', method: 'reset', params: [ 'confirmation' ], expect: { '': {} } });
+var callResetAccess = rpc.declare({ object: 'session', method: 'access', params: [ 'scope', 'object', 'function' ], expect: { access: false } });
 var callDHCPLeases = rpc.declare({ object: 'luci-rpc', method: 'getDHCPLeases', expect: { '': {} } });
 var callHostHints = rpc.declare({ object: 'luci-rpc', method: 'getHostHints', expect: { '': {} } });
 
@@ -161,16 +163,70 @@ function runQuickAction(control, request, successMessage) {
 }
 
 return view.extend({
+	handleFullReset: function() {
+		if (!this.canReset)
+			return;
+		var busy = false;
+		var confirmation = E('input', {
+			'type': 'text', 'class': 'cbi-input-text', 'autocomplete': 'off',
+			'aria-label': _('Type RESET OWRTPC to confirm'),
+			'input': function() {
+				reset.disabled = busy || confirmation.value !== 'RESET OWRTPC';
+			}
+		});
+		var cancel = E('button', {
+			'type': 'button', 'class': 'btn cbi-button', 'click': ui.hideModal
+		}, _('Cancel'));
+		var reset = E('button', {
+			'type': 'button', 'class': 'btn cbi-button cbi-button-negative', 'disabled': true,
+			'click': function() {
+				if (busy || confirmation.value !== 'RESET OWRTPC')
+					return;
+				busy = true;
+				reset.disabled = cancel.disabled = confirmation.disabled = true;
+				return uci.changes().then(function(changes) {
+					if (changes.owrtpc && changes.owrtpc.length)
+						throw new Error(_('Apply or discard pending OWRTPC changes before resetting.'));
+					ui.showModal(_('Resetting OWRTPC…'), [
+						E('p', { 'class': 'spinning' }, _('Please wait while OWRTPC resets its data and restarts.'))
+					]);
+					return callFullReset(confirmation.value);
+				}).then(function(result) {
+					if (!result.success)
+						throw new Error(result.error || _('OWRTPC reset failed.'));
+					ui.hideModal();
+					reloadWithNotification(_('OWRTPC has been reset. Create new profiles to enable parental-control rules.'));
+				}).catch(function(error) {
+					ui.hideModal();
+					ui.addNotification(null, E('p', {},
+						_('Reset could not be confirmed. Check the current OWRTPC status before trying again. Details: %s').format(error.message)), 'error');
+				});
+			}
+		}, _('Reset all OWRTPC data'));
+		ui.showModal(_('Reset all OWRTPC data?'), [
+			E('p', {}, _('This permanently deletes all OWRTPC profiles, device assignments, usage counters and extra time, and restores the default OWRTPC settings. Unsaved edits on this page will be discarded.')),
+			E('p', {}, _('OWRTPC will briefly stop and restart. No parental-control blocks will remain until you create new profiles. Router network, Wi-Fi, passwords, DHCP names and other services are not reset.')),
+			E('p', {}, _('This cannot be undone. Export a backup first if you may need the current data.')),
+			E('p', {}, _('Existing backups and system logs are not deleted.')),
+			E('p', {}, _('Type RESET OWRTPC to confirm')),
+			confirmation,
+			E('div', { 'class': 'right' }, [ cancel, ' ', reset ])
+		]);
+		confirmation.focus();
+	},
+
 	load: function() {
 		return Promise.all([
 			uci.load('owrtpc'), uci.load('firewall'), callStatus(),
 			callDHCPLeases().catch(function() { return {}; }),
 			callHostHints().catch(function() { return {}; }),
-			uci.load('gl-client').catch(function() { return null; })
+			uci.load('gl-client').catch(function() { return null; }),
+			callResetAccess('ubus', 'owrtpc', 'reset').catch(function() { return false; })
 		]);
 	},
 
 	render: function(data) {
+		this.canReset = data[6] === true;
 		window.setTimeout(showQueuedNotification, 0);
 		document.addEventListener('uci-applied', function() {
 			callRefresh().then(function(result) {
@@ -434,6 +490,16 @@ return view.extend({
 			return actions;
 		};
 
-		return m.render();
+		return m.render().then(L.bind(function(node) {
+			return E('div', {}, [ node, E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('Reset OWRTPC')),
+				E('p', {}, _('Delete all OWRTPC data and restore its default settings. This does not reset the router.')),
+				E('button', {
+					'type': 'button', 'class': 'btn cbi-button cbi-button-negative',
+					'disabled': !this.canReset || null,
+					'click': ui.createHandlerFn(this, 'handleFullReset')
+				}, _('Reset all OWRTPC data'))
+			]) ]);
+		}, this));
 	}
 });

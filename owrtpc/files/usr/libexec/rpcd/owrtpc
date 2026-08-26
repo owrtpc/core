@@ -3,6 +3,7 @@
 
 . /usr/share/libubox/jshn.sh
 . /lib/functions.sh
+. /usr/share/owrtpc/lock.sh
 
 OWRTPCCTL=/usr/sbin/owrtpcctl
 
@@ -18,6 +19,34 @@ rpc_error() {
 	json_add_boolean success 0
 	json_add_string error "$1"
 	json_dump
+}
+
+# Serialize quick writes with reset, including their UCI edits. The engine
+# lock separately protects samples/checkpoints and allows these calls to use
+# owrtpcctl without taking the same lock twice.
+rpc_write() (
+	owrtpc_lock "$OWRTPC_ACTION_LOCK" || { rpc_error 'OWRTPC is busy'; exit 0; }
+	trap 'rmdir "$OWRTPC_ACTION_LOCK"' EXIT
+	trap 'exit 130' INT
+	trap 'exit 143' TERM
+	"$@"
+)
+
+rpc_reset() {
+	json_load "$1" || { rpc_error 'Invalid JSON request'; return; }
+	json_get_var confirmation confirmation
+	json_get_type confirmation_type confirmation
+	[ "$confirmation_type" = string ] && [ "$confirmation" = 'RESET OWRTPC' ] || {
+		rpc_error 'Explicit confirmation is required: RESET OWRTPC'
+		return
+	}
+	message_file=$(mktemp /tmp/owrtpc-rpc-reset.XXXXXX) || return 1
+	if "$OWRTPCCTL" reset --confirm > "$message_file" 2>&1; then
+		json_init; json_add_boolean success 1; json_dump
+	else
+		rpc_error "$(cat "$message_file")"
+	fi
+	rm -f "$message_file"
 }
 
 rpc_status() {
@@ -170,17 +199,21 @@ case "$1" in
 		json_close_object
 		json_add_object refresh; json_close_object
 		json_add_object validate; json_close_object
+		json_add_object reset
+		json_add_string confirmation String
+		json_close_object
 		json_dump
 		;;
 	call)
 		read -r request
 		case "$2" in
 			status) rpc_status ;;
-			set_enabled) rpc_set_enabled "$request" ;;
-			set_block) rpc_set_block "$request" ;;
-			add_time) rpc_add_time "$request" ;;
-			refresh) rpc_refresh ;;
+			set_enabled) rpc_write rpc_set_enabled "$request" ;;
+			set_block) rpc_write rpc_set_block "$request" ;;
+			add_time) rpc_write rpc_add_time "$request" ;;
+			refresh) rpc_write rpc_refresh ;;
 			validate) rpc_validate ;;
+			reset) rpc_reset "$request" ;;
 			*) rpc_error 'Unknown method' ;;
 		esac
 		;;

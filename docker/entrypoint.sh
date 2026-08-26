@@ -7,10 +7,9 @@ UBUS_SOCKET=/var/run/ubus/ubus.sock
 UBUSD_PID=''
 PROCD_PID=''
 RPCD_PID=''
-OWRTPC_PID=''
 
 cleanup() {
-	[ -z "$OWRTPC_PID" ] || kill "$OWRTPC_PID" 2>/dev/null || true
+	/etc/init.d/owrtpc stop 2>/dev/null || true
 	[ -z "$RPCD_PID" ] || kill "$RPCD_PID" 2>/dev/null || true
 	[ -z "$PROCD_PID" ] || kill "$PROCD_PID" 2>/dev/null || true
 	[ -z "$UBUSD_PID" ] || kill "$UBUSD_PID" 2>/dev/null || true
@@ -59,8 +58,8 @@ done
 /sbin/rpcd -s "$UBUS_SOCKET" &
 RPCD_PID=$!
 
-/usr/sbin/owrtpcd &
-OWRTPC_PID=$!
+ubus -s "$UBUS_SOCKET" -t 30 wait_for service
+/etc/init.d/owrtpc start
 
 echo 'OWRTPC test router ready at http://localhost:8080/ (root / owrtpc)'
 exec /usr/sbin/uhttpd -f \

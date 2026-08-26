@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=owrtpc
 PKG_VERSION:=0.1.0_alpha1
-PKG_RELEASE:=22
+PKG_RELEASE:=23
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Fabrizio Pellegrini <desmofab@gmail.com>
 
@@ -53,8 +53,12 @@ define Package/owrtpc/install
 	$(INSTALL_DIR) $(1)/usr/sbin $(1)/usr/libexec/rpcd
 	$(INSTALL_BIN) ./files/usr/sbin/* $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/usr/libexec/rpcd/owrtpc $(1)/usr/libexec/rpcd/owrtpc
+	$(INSTALL_BIN) ./files/usr/libexec/owrtpc-reset $(1)/usr/libexec/owrtpc-reset
 	$(INSTALL_DIR) $(1)/usr/share/owrtpc $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_BIN) ./files/usr/share/owrtpc/firewall.include $(1)/usr/share/owrtpc/
+	$(INSTALL_DATA) ./files/usr/share/owrtpc/lock.sh $(1)/usr/share/owrtpc/
+	$(INSTALL_DIR) $(1)/usr/share/owrtpc/defaults
+	$(INSTALL_DATA) ./files/etc/config/owrtpc $(1)/usr/share/owrtpc/defaults/owrtpc
 	$(INSTALL_DATA) ./files/usr/share/rpcd/acl.d/owrtpc.json $(1)/usr/share/rpcd/acl.d/
 endef
 

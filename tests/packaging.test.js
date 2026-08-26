@@ -30,6 +30,9 @@ assert.deepEqual(acl.owrtpc.read, acl['luci-app-owrtpc'].read);
 assert.deepEqual(acl.owrtpc.write, acl['luci-app-owrtpc'].write);
 assert.deepEqual(acl.owrtpc.write.uci, ['owrtpc']);
 assert.ok(acl.owrtpc.read.ubus['luci-rpc'].includes('getHostHints'));
+assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('reset'));
+assert.ok(!acl.owrtpc.read.ubus.owrtpc.includes('reset'));
+assert.match(ui, /LUCI_EXTRA_DEPENDS:=owrtpc \(>=0.1.0_alpha1-r23\)/);
 for (const [dir, prefix] of [['owrtpc/files', ''], ['scripts', ''], ['docker', '']]) {
 	for (const file of files(dir)) {
 		const text = read(dir + '/' + file);

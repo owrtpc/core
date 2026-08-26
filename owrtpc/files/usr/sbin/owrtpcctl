@@ -440,13 +440,15 @@ apply_policy() {
 
 	rules="$work_dir/rules.nft"
 	{
+		# Replace the table in one transaction, including during reset/startup.
+		# Unlike delete, destroy also works when no previous table exists.
+		printf 'destroy table inet owrtpc\n'
 		printf 'add table inet owrtpc\n'
 		printf 'add chain inet owrtpc forward { type filter hook forward priority -5; policy accept; }\n'
 		cat "$APPLY_BLOCKS"
 		cat "$APPLY_COUNTERS"
 	} > "$rules"
 
-	"$NFT_BIN" delete table inet owrtpc >/dev/null 2>&1 || true
 	if ! "$NFT_BIN" -f "$rules"; then
 		log 'failed to install nftables policy'
 		rm -rf "$work_dir"
@@ -792,19 +794,17 @@ if [ "${OWRTPC_TEST_MODE:-0}" = '1' ]; then
 	return 0 2>/dev/null || exit 0
 fi
 
-acquire_lock() {
-	lock_dir="$STATE_DIR/lock"
-	attempt=0
-	while ! mkdir "$lock_dir" 2>/dev/null; do
-		attempt=$((attempt + 1))
-		[ "$attempt" -lt 30 ] || { log 'timed out waiting for policy lock'; return 1; }
-		sleep 1
-	done
-	trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT INT TERM
-}
+if [ "${1:-}" = reset ]; then
+	shift
+	exec /usr/libexec/owrtpc-reset "$@"
+fi
 
+. /usr/share/owrtpc/lock.sh
+owrtpc_lock "$OWRTPC_ENGINE_LOCK" || exit 1
+trap 'rmdir "$OWRTPC_ENGINE_LOCK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 ensure_state
-acquire_lock || exit 1
 
 case "${1:-}" in
 	apply) apply_policy ;;
@@ -816,7 +816,7 @@ case "${1:-}" in
 	add-time) add_time "${2:-}" "${3:-}" ;;
 	validate) ensure_state; validate_config ;;
 	*)
-		echo "Usage: owrtpcctl {init|sample|apply|status|diagnostics|validate|checkpoint|add-time PROFILE SECONDS}" >&2
+		echo "Usage: owrtpcctl {init|sample|apply|status|diagnostics|validate|checkpoint|add-time PROFILE SECONDS|reset --confirm}" >&2
 		exit 2
 		;;
 esac

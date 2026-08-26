@@ -17,6 +17,7 @@ The first milestone supports:
 - immediate manual block/unblock, +1h, +4h and All Day quick actions;
 - replacement-based same-day extra time (+1h, +4h or All Day), discarded at bedtime or day rollover;
 - native LuCI notifications for quick-action results;
+- full OWRTPC data reset with explicit confirmation, without reinstalling packages;
 - lightweight usage accounting with periodic, configurable flash checkpoints.
 
 ## Daily allowance semantics
@@ -66,7 +67,7 @@ userspace extracted from a sysupgrade image for UI, API and backend smoke tests.
 Install `owrtpc` first, then optionally `luci-app-owrtpc`. The interface depends
 on the backend; the backend runs without LuCI. Follow [installation and manual
 LuCI upload instructions](docs/INSTALL.md). Existing monolithic installations
-require the documented backup/checkpoint migration before uploading r22.
+require the documented backup/checkpoint migration before uploading r22 or newer.
 See [development instructions](docs/DEVELOPMENT.md) for SDK builds, and the
 [shared API contract](docs/API.md) for client dependencies and permissions.
 

@@ -7,8 +7,8 @@ OWRTPC has two packages from r22 onward:
 | `owrtpc` | Service, policy engine, CLI, UCI, firewall integration, RPC APIs and shared ACLs | All installations |
 | `luci-app-owrtpc` | LuCI JavaScript, menu and translation sources | Optional web interface |
 
-Install `owrtpc` first and `luci-app-owrtpc` second. Both r22 packages use
-version `0.1.0_alpha1-r22`; the UI requires backend r22 or newer. The backend
+Install `owrtpc` first and `luci-app-owrtpc` second. The current packages use
+version `0.1.0_alpha1-r23`; this UI requires backend r23 or newer. The backend
 has no dependency on `luci-base` or any web UI. `rpcd-mod-luci` is a standalone
 RPC module, required for DHCP leases and host hints despite its name.
 
@@ -27,8 +27,8 @@ once on the router (never copy the private signing key):
 cp /tmp/owrtpc-release.pem /etc/apk/keys/owrtpc-release.pem
 chmod 0644 /etc/apk/keys/owrtpc-release.pem
 apk update
-apk verify /tmp/owrtpc-0.1.0_alpha1-r22.apk
-apk verify /tmp/luci-app-owrtpc-0.1.0_alpha1-r22.apk
+apk verify /tmp/owrtpc-0.1.0_alpha1-r23.apk
+apk verify /tmp/luci-app-owrtpc-0.1.0_alpha1-r23.apk
 ```
 
 The public key is `keys/owrtpc-release.pem` in `owrtpc/core`. The split does not
@@ -39,9 +39,9 @@ or distributed as releases.
 ## Clean installation
 
 ```sh
-apk add /tmp/owrtpc-0.1.0_alpha1-r22.apk
+apk add /tmp/owrtpc-0.1.0_alpha1-r23.apk
 # Optional:
-apk add /tmp/luci-app-owrtpc-0.1.0_alpha1-r22.apk
+apk add /tmp/luci-app-owrtpc-0.1.0_alpha1-r23.apk
 ```
 
 For a backend-only installation, stop after the first command. Local CLI and
@@ -52,9 +52,9 @@ configure remote access. See [API.md](API.md) for the transport boundary.
 
 After trusting the release public key, open **System > Software** (called
 **Package Manager** on some LuCI versions), select **Upload Package**, and
-upload `owrtpc-0.1.0_alpha1-r22.apk`. Wait for successful installation and
+upload `owrtpc-0.1.0_alpha1-r23.apk`. Wait for successful installation and
 resolution of its dependencies. Then upload
-`luci-app-owrtpc-0.1.0_alpha1-r22.apk` in a second operation. Refresh LuCI and
+`luci-app-owrtpc-0.1.0_alpha1-r23.apk` in a second operation. Refresh LuCI and
 open **Services > Parental Control**.
 
 Uploading the UI alone does not provide the local backend APK: it cannot be
@@ -114,12 +114,39 @@ still needs its own validation; no Flint2 operation is part of this work.
 
 Do not reboot or delete the backup. A failure after removal leaves accounting
 stopped. Resolve the installation error and install the backend, or reinstall
-the saved monolithic APK to restore the previous version. If r22 is partly
+the saved monolithic APK to restore the previous version. If the split is partly
 installed, remove its UI first, then its backend before reinstalling the old APK.
 Restore `backup/config` to `/etc/config/owrtpc`; `owrtpc.tar` and `state.tar`
 contain the contents of `/tmp/owrtpc` and `/etc/owrtpc/state` respectively. Stop
 OWRTPC before restoring state, preserve the backup, and restart after recovery.
 The engine intentionally discards usage/bonus belonging to a previous local day.
+
+## Reset OWRTPC without reinstalling (r23+)
+
+On **Services > Parental Control**, the **Reset OWRTPC** section contains a red
+**Reset all OWRTPC data** button (standard LuCI `cbi-button-negative` styling).
+The standard LuCI modal describes the consequences, offers Cancel and requires
+typing `RESET OWRTPC` before enabling confirmation. A read-only account cannot
+use the action. Save/apply or discard pending OWRTPC changes in all sessions
+before resetting; do not edit from another tab during the operation.
+
+This resets profiles, device assignments, counters, bonuses and OWRTPC engine
+settings. Accounting stops briefly, data is erased and the service restarts
+with the shipped defaults and no profiles. There are **no parental-control
+blocks** until you create new profiles. The operation is immediate, not staged
+behind Save & Apply, and needs neither package reinstallation nor router reboot.
+
+Network/Wi-Fi settings, other firewall rules, DHCP/device discovery, passwords,
+signing keys, existing backups and system logs remain. Export a backup first if
+you may need the data; reset does not create a hidden copy of the erased data.
+For a broken config that prevents the page loading, the root SSH equivalent is
+`owrtpcctl reset --confirm`. On any error or lost connection, check current
+status before retrying: reset may have already erased data. See [API.md](API.md)
+for details and concurrency limits.
+
+The button is available only **after** installing r23. It does not replace the
+one-time monolith migration above. From the already split r22, simply upgrade
+the backend first and the UI second; no removal or reset is required.
 
 ## Verification and subsequent upgrades
 

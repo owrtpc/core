@@ -49,6 +49,9 @@ docker run --rm --privileged --platform linux/arm64 \
 		mkdir -p /work/rootfs/usr/local/bin
 		if [ "$OWRTPC_OVERLAY" = both ]; then
 			cp -a /project/owrtpc/files/. /work/rootfs/
+			mkdir -p /work/rootfs/usr/share/owrtpc/defaults
+			cp /project/owrtpc/files/etc/config/owrtpc /work/rootfs/usr/share/owrtpc/defaults/owrtpc
+			chmod 0755 /work/rootfs/usr/libexec/owrtpc-reset
 			cp -a /project/luci-app-owrtpc/root/. /work/rootfs/
 			mkdir -p /work/rootfs/www
 			cp -a /project/luci-app-owrtpc/htdocs/. /work/rootfs/www/

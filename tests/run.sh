@@ -287,6 +287,7 @@ printf '%s passed, %s failed\n' "$passed" "$failed"
 
 if command -v node >/dev/null 2>&1; then
 	node "$PROJECT_DIR/tests/devices.test.js"
+	node "$PROJECT_DIR/tests/reset.test.js"
 else
 	printf 'skip - device autocomplete tests require Node.js\n'
 fi

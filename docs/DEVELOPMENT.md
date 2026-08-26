@@ -65,7 +65,15 @@ release key, and must not be distributed. The lifecycle suite uses real APK
 installation and scripts: clean backend/UI install, removal of the UI without
 restarting the backend, a system with all of LuCI removed, restricted rpcd
 login/ACL checks, actual host hints, policy tests and migration from the real
-signed r20 APK in `dist/`. Preserve that historical artifact.
+signed r20 APK in `dist/`, plus upgrade from the signed split r22 pair. Preserve
+these historical artifacts. CI runs clean/headless cases without those binaries.
+
+The lifecycle suite also tests full reset with and without LuCI: explicit
+confirmation, write ACLs, pending changes/snapshots, busy locks, missing defaults,
+symlink refusal, preserved router config and state not returning after restart.
+`tests/reset.test.js`, invoked by `tests/run.sh`, exercises the LuCI dialog's
+cancel/confirm, read-only access, double click and error paths with a mocked DOM.
+Actual browser rendering still requires the Docker UI workflow.
 
 See [docker/README.md](../docker/README.md) for UI smoke tests and container
 limitations. Tests never connect to a physical router.
@@ -136,6 +144,10 @@ Reviewed against OpenWrt 25.12 and current project guidance on 2026-08-26:
 - [LuCI package rules](https://github.com/openwrt/luci/blob/openwrt-25.12/luci.mk)
 - [Standalone rpcd-mod-luci definition](https://github.com/openwrt/luci/blob/openwrt-25.12/libs/rpcd-mod-luci/Makefile)
 - [OpenWrt APK packaging and conffiles](https://github.com/openwrt/openwrt/blob/openwrt-25.12/include/package-pack.mk)
+- [LuCI modal API](https://openwrt.github.io/luci/jsapi/LuCI.ui.html#showModal)
+- [LuCI pending changes API](https://openwrt.github.io/luci/jsapi/LuCI.uci.html#changes)
+- [rpcd UCI savedir and snapshot paths](https://github.com/openwrt/rpcd/blob/master/include/rpcd/uci.h)
+- [nftables atomic rule replacement](https://wiki.nftables.org/wiki-nftables/index.php/Atomic_rule_replacement)
 
 Translations use the generated POT and future Weblate catalogs. No official
 feed publication or Weblate project is created by this change.
