@@ -17,11 +17,9 @@ for attempt in 1 2 3 4 5; do
 done
 mkdir -p /tmp/empty-init
 /sbin/procd -s /var/run/ubus/ubus.sock -I /tmp/empty-init -R /tmp/empty-init -S &
-for attempt in 1 2 3 4 5; do
-	ubus list service >/dev/null 2>&1 && break
-	sleep 1
-done
+ubus -t 30 wait_for service
 /etc/init.d/rpcd start
+ubus -t 30 wait_for session
 if [ "$mode" = headless ]; then
 	# Pin actual backend dependencies, then remove all of LuCI.
 	apk add rpcd rpcd-mod-luci firewall4 nftables-json jshn jsonfilter uci ubus
@@ -79,10 +77,7 @@ uci set owrtpc.main.sample_interval=3600
 uci commit owrtpc
 /etc/init.d/owrtpc restart
 /etc/init.d/rpcd restart
-for attempt in 1 2 3 4 5; do
-	ubus list owrtpc >/dev/null 2>&1 && break
-	sleep 1
-done
+ubus -t 30 wait_for owrtpc luci-rpc session
 owrtpcctl validate | grep -qx OK
 [ -x /usr/share/owrtpc/firewall.include ]
 nft delete table inet owrtpc
@@ -106,7 +101,7 @@ uci add_list rpcd.package_test.read=owrtpc
 uci add_list rpcd.package_test.write=owrtpc
 uci commit rpcd
 /etc/init.d/rpcd restart
-sleep 1
+ubus -t 30 wait_for owrtpc luci-rpc session
 session=$(ubus call session login '{"username":"owrtpc-test","password":"owrtpc"}' | jsonfilter -e '@.ubus_rpc_session')
 [ -n "$session" ]
 check_access() {
@@ -123,6 +118,7 @@ fi
 sh /project/docker/policy-test.sh
 if [ "$mode" != headless ]; then
 	apk --allow-untrusted add "$frontend"
+	ubus -t 30 wait_for session owrtpc luci-rpc
 	apk info --who-owns /www/luci-static/resources/view/owrtpc/profiles-v2.js | grep -q luci-app-owrtpc
 	/usr/sbin/uhttpd -f -h /www -x /cgi-bin -u /ubus -p 127.0.0.1:80 &
 	sleep 1
@@ -141,7 +137,7 @@ if [ "$mode" != headless ]; then
 	[ ! -e /www/luci-static/resources/view/owrtpc/profiles-v2.js ]
 	apk info -e owrtpc
 	/etc/init.d/rpcd restart
-	sleep 1
+	ubus -t 30 wait_for owrtpc luci-rpc session
 	ubus call owrtpc status | grep -q profiles
 	ubus call luci-rpc getHostHints | grep -q owrtpc-discovery-test
 	# A fresh login, after rpcd reload, must still receive backend permissions.
