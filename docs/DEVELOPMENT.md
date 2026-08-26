@@ -71,7 +71,13 @@ See [docker/README.md](../docker/README.md) for UI smoke tests and container
 limitations. Tests never connect to a physical router.
 
 CI has two jobs: source/release safeguards and SDK builds with clean/headless
-APK lifecycle tests. SDK/firmware downloads use pinned SHA-256 values. It does
+APK lifecycle tests. The package job uses `ubuntu-24.04-arm`: OpenWrt and its
+nftables tests run on native ARM64. QEMU user mode does not support
+`NETLINK_NETFILTER`, so emulating the router userspace on an x86 runner cannot
+verify the firewall. Only the official x86_64 SDK tools run under emulation,
+inside `docker/sdk.Dockerfile`; no firewall assertions are skipped.
+`sh scripts/ci-packages.sh` reproduces that job on a native ARM64 Docker host.
+SDK/firmware downloads use pinned SHA-256 values. It does
 not publish unsigned APKs. The historical r20 binary is deliberately not
 reconstructed or committed as a fixture: migration against that actual binary
 is a local release verification requirement.

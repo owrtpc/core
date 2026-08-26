@@ -59,4 +59,23 @@ for runs in ([], [dict(ok, head_sha='b'*40)], [dict(ok, event='pull_request')],
         raise AssertionError(runs)
 `], { cwd: root, encoding: 'utf8' });
 assert.equal(ciTest.status, 0, ciTest.stderr);
+// Refuse unsupported runtime hosts before downloads/builds. A Docker failure
+// must also propagate, rather than masquerading as an architecture mismatch.
+fs.mkdirSync(path.join(root, 'tmp'), { recursive: true });
+const hostTest = fs.mkdtempSync(path.join(root, 'tmp', 'ci-host-test.'));
+try {
+	for (const [body, status, error] of [
+		['echo x86_64', 1, /require a native ARM64 Docker host/],
+		['echo "Docker unavailable" >&2; exit 42', 42, /Docker unavailable/]
+	]) {
+		fs.writeFileSync(path.join(hostTest, 'docker'), '#!/bin/sh\n' + body + '\n', { mode: 0o755 });
+		const result = spawnSync('sh', ['scripts/ci-packages.sh'], {
+			cwd: root, encoding: 'utf8', env: { ...process.env, PATH: hostTest + ':' + process.env.PATH }
+		});
+		assert.equal(result.status, status, result.stderr);
+		assert.match(result.stderr, error);
+	}
+} finally {
+	fs.rmSync(hostTest, { recursive: true, force: true });
+}
 console.log('ok - package boundaries, dependency declarations, ACLs, shell syntax and CI gate');

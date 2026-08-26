@@ -7,6 +7,8 @@ backend=/packages/owrtpc-0.1.0_alpha1-r22.apk
 frontend=/packages/luci-app-owrtpc-0.1.0_alpha1-r22.apk
 legacy=/legacy/luci-app-owrtpc-0.1.0_alpha1-r20.apk
 [ -f /.dockerenv ] || { echo 'Docker only' >&2; exit 1; }
+# Fail early if the host cannot exercise the real firewall (e.g. QEMU user mode).
+nft list tables >/dev/null
 mkdir -p /tmp/lock /tmp/log /var/run/ubus
 # No external repositories. Normal dependency solving stays enabled.
 : > /etc/apk/repositories
