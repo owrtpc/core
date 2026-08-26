@@ -4,6 +4,10 @@ OWRTPC is an independent, open-source parental-control application for OpenWrt
 25.12 and newer. It provides a LuCI interface backed by UCI, rpcd and
 nftables/firewall4.
 
+The project is maintained under the [OWRTPC organization](https://github.com/owrtpc).
+The canonical repository is
+[owrtpc/owrt-parental-control](https://github.com/owrtpc/owrt-parental-control).
+
 The first milestone supports:
 
 - independent profiles;
