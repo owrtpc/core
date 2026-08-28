@@ -1,16 +1,16 @@
 # Shared router API
 
-The router component is `owrtpc/core`. Both LuCI and the future `owrtpc/mobile`
+The router component is `owrtpc/core`. Both LuCI and the `owrtpc/mobile`
 client consume the router's state and policy engine; neither duplicates it.
-This document describes the existing MVP contract, not a new versioned mobile
-protocol. No mobile repository, HTTP server, remote access or web filter is
-created by this reorganization.
+This document describes the shared MVP contract and the versioned compatibility
+handshake used by the mobile client. No remote access, relay service or web
+filter is provided by this API.
 
 ## Objects and dependencies
 
 | API | Operations | Provider |
 | --- | --- | --- |
-| `owrtpc` | `status`, `validate`, `refresh`, `set_enabled`, `set_block`, `add_time`, `reset` | `owrtpc` executable rpcd plugin |
+| `owrtpc` | `capabilities`, `status`, `validate`, `refresh`, `set_enabled`, `set_block`, `add_time`, `reset` | `owrtpc` executable rpcd plugin |
 | `uci` | profile/config reads and staged edits, apply/confirm | `rpcd` |
 | `session` | login, access checks, logout | `rpcd` |
 | `luci-rpc` | `getHostHints`, `getDHCPLeases` | `rpcd-mod-luci` |
@@ -26,17 +26,17 @@ Host hints include standard OpenWrt configured DHCP names and discovered
 addresses. DHCP leases and the configured profile MACs complete the device
 list, including offline devices. LuCI's existing merge/search code stays in the
 UI. Optional aliases can be read from UCI `gl-client` when present; that vendor
-package is not a dependency and missing data must be tolerated. A future app
+package is not a dependency and missing data must be tolerated. The mobile app
 must use the same sources and precedence (alias, host hints, leases, MAC), not
 assume GL.iNet firmware. No new discovery algorithm is introduced here.
 
 ## Permissions and configuration
 
 `/usr/share/rpcd/acl.d/owrtpc.json` belongs to the backend. The stable grant is
-`owrtpc`, with read-only `owrtpc` status/validation, discovery and UCI reads for
-`owrtpc`, `firewall`, and optional `gl-client`. Its write grant permits the
-existing quick actions and UCI changes **only to `owrtpc`**, never firewall or
-vendor configuration writes.
+`owrtpc`, with read-only `owrtpc` capabilities/status/validation, discovery and
+UCI reads for `owrtpc`, `firewall`, and optional `gl-client`. Its write grant
+permits the existing quick actions and UCI changes **only to `owrtpc`**, never
+firewall or vendor configuration writes.
 
 From r23 the write grant also permits the destructive `reset` method. Read-only
 accounts cannot reset. This shared permission remains installed without LuCI.
@@ -46,6 +46,42 @@ that same backend file. Existing restricted clients keep their permissions
 after UI removal. The LuCI menu retains that historical grant, so a restricted
 LuCI account should continue to receive it. New non-UI clients use `owrtpc`.
 No account or broader permission is automatically provisioned.
+
+## Mobile compatibility handshake
+
+`owrtpc.capabilities` is an authenticated, read-only operation. Clients call it
+after login and `session.access`, before reading or changing profile data. A V1
+response is:
+
+```json
+{
+  "api": "owrtpc-mobile",
+  "major": 1,
+  "minor": 0,
+  "backend_version": "0.1.0_alpha1-r23",
+  "features": [
+    "profiles.read",
+    "profiles.write",
+    "quick-actions",
+    "device-discovery",
+    "uci-apply-confirm"
+  ],
+  "router_date": "2026-08-28",
+  "router_timezone": "Europe/Rome"
+}
+```
+
+`major` changes only for incompatible contracts. A higher `minor` may add
+optional fields or feature strings; clients ignore values they do not know.
+`backend_version` is derived from the installed APK and is `development` for an
+unpackaged source overlay. `router_date` and `router_timezone` are authoritative
+for schedule presentation and day rollover; the phone clock is not.
+
+Feature strings describe backend support, not the current session's
+authorization. The client must still inspect `session.access`: a read-only
+account can receive `profiles.write` in the capabilities list while its write UI
+remains absent. Missing `owrtpc.capabilities`, another `api`, or an unsupported
+major version is an incompatible backend rather than a generic network error.
 
 Quick actions commit immediately. Profile editing uses rpcd/UCI staging and
 apply/confirm; do not treat a successful `uci.set` as a committed change.
@@ -98,6 +134,6 @@ Local CLI/ubus calls are available with backend alone. HTTP JSON-RPC requires a
 separately configured bridge such as `uhttpd-mod-ubus`, with authentication,
 network restrictions and appropriate TLS. An existing LuCI installation
 normally already has that bridge. OWRTPC does not install or expose it just to
-prepare for mobile, and does not configure remote connectivity. The future app
-must define a versioned contract, secure credentials and certificate handling
-before implementation.
+prepare for mobile, and does not configure remote connectivity. The mobile app
+must complete its secure credential and certificate-pairing spike before live
+authentication is considered production-ready.

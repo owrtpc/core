@@ -55,7 +55,8 @@ allowance configured for its schedule.
 `owrtpc/` contains the standalone router backend package (`Makefile`, `files/`).
 `luci-app-owrtpc/` contains the optional LuCI package (`Makefile`, `htdocs/`,
 `root/`, `po/`). Tests, documentation and build tools are shared in this repository.
-The future `owrtpc/mobile` repository is deferred; there is no separate LuCI repository.
+The sibling `owrtpc/mobile` repository contains the Docker-first Flutter spike;
+there is no separate LuCI repository.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for build and test instructions.
@@ -81,10 +82,13 @@ Firewall software/hardware flow offloading must currently be disabled so every
 forwarded packet reaches the accounting hook. See the architecture notes for
 details.
 
-## Mobile app planning
+## Mobile app
 
-A cross-platform companion app is planned, but development is deferred.
-See [the mobile specifications](docs/MOBILE_APP.md) for the recorded scope.
+The cross-platform companion is in its M0 contract and platform spike. Its
+separate repository now contains a Docker-first Flutter shell with the visual
+system, English/Italian localization and read-only fixture profiles. See
+[the mobile design](docs/MOBILE_APP.md) for the V1 scope, security boundary,
+interaction model and delivery roadmap.
 
 ## Contributing and security
 

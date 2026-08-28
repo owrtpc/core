@@ -4,6 +4,7 @@
 		"read": {
 			"ubus": {
 				"owrtpc": [
+					"capabilities",
 					"status",
 					"validate"
 				],
@@ -47,6 +48,7 @@
 		"read": {
 			"ubus": {
 				"owrtpc": [
+					"capabilities",
 					"status",
 					"validate"
 				],

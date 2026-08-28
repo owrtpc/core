@@ -45,8 +45,9 @@ router or a multi-network Linux integration setup.
 The derived image is deliberately local and is not pushed by these scripts.
 
 The smoke test has been verified against the supplied OpenWrt 25.12.5 AX3000T
-image. It exercises LuCI, rpcd login, the OWRTPC ubus object, a temporary
-profile, quick blocking and the resulting nftables rules.
+image. It exercises LuCI, rpcd login, the versioned OWRTPC mobile-capability
+handshake, a temporary profile, quick blocking and the resulting nftables
+rules.
 
 ## Real package lifecycle tests
 

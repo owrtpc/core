@@ -11,9 +11,10 @@ git remote set-url origin git@github.com:owrtpc/core.git
 git ls-remote origin refs/heads/main
 ```
 
-Keep backend and LuCI together. `owrtpc/mobile` is a future separate repository,
-not created by this work. No standalone LuCI repository or official feed
-submission is planned in this change.
+Keep backend and LuCI together. The `owrtpc/mobile` client uses a separate
+repository and a pinned Docker-first Flutter toolchain; its platform spike can
+advance without adding mobile SDKs to this core repository. No standalone LuCI
+repository or official feed submission is planned.
 
 ## Buildroot / SDK conventions
 

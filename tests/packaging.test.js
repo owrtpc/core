@@ -30,8 +30,20 @@ assert.deepEqual(acl.owrtpc.read, acl['luci-app-owrtpc'].read);
 assert.deepEqual(acl.owrtpc.write, acl['luci-app-owrtpc'].write);
 assert.deepEqual(acl.owrtpc.write.uci, ['owrtpc']);
 assert.ok(acl.owrtpc.read.ubus['luci-rpc'].includes('getHostHints'));
+assert.ok(acl.owrtpc.read.ubus.owrtpc.includes('capabilities'));
 assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('reset'));
 assert.ok(!acl.owrtpc.read.ubus.owrtpc.includes('reset'));
+const rpcPlugin = read('owrtpc/files/usr/libexec/rpcd/owrtpc');
+for (const value of [
+	"json_add_string api 'owrtpc-mobile'",
+	'json_add_int major 1',
+	'json_add_int minor 0',
+	"json_add_string '' 'profiles.read'",
+	"json_add_string '' 'profiles.write'",
+	"json_add_string '' 'quick-actions'",
+	"json_add_string '' 'device-discovery'",
+	"json_add_string '' 'uci-apply-confirm'"
+]) assert.ok(rpcPlugin.includes(value), value);
 assert.match(ui, /LUCI_EXTRA_DEPENDS:=owrtpc \(>=0.1.0_alpha1-r23\)/);
 for (const [dir, prefix] of [['owrtpc/files', ''], ['scripts', ''], ['docker', '']]) {
 	for (const file of files(dir)) {

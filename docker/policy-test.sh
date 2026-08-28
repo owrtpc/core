@@ -19,6 +19,9 @@ set -eu
 	uci commit owrtpc
 	refresh=$(ubus -s /var/run/ubus/ubus.sock call owrtpc refresh)
 	printf "%s\n" "$refresh" | grep -q "\"success\": true"
+	capabilities=$(ubus -s /var/run/ubus/ubus.sock call owrtpc capabilities)
+	printf "%s\n" "$capabilities" | grep -q '"api": "owrtpc-mobile"'
+	printf "%s\n" "$capabilities" | grep -q '"major": 1'
 	status=$(ubus -s /var/run/ubus/ubus.sock call owrtpc status)
 	printf "%s\n" "$status" | grep -q "\"section\": \"docker_test\""
 	diagnostics=$(/usr/sbin/owrtpcctl diagnostics)

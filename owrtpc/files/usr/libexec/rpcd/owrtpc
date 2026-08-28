@@ -84,6 +84,33 @@ rpc_status() {
 	rm -f "$status_file"
 }
 
+rpc_capabilities() {
+	package_owner=$(apk info --who-owns "$OWRTPCCTL" 2>/dev/null |
+		sed -n 's/^.* is owned by //p' | head -n 1)
+	case "$package_owner" in
+		owrtpc-*) backend_version=${package_owner#owrtpc-} ;;
+		*) backend_version=development ;;
+	esac
+	router_timezone=$(uci -q get 'system.@system[0].zonename')
+	[ -n "$router_timezone" ] || router_timezone=$(date +%Z)
+
+	json_init
+	json_add_string api 'owrtpc-mobile'
+	json_add_int major 1
+	json_add_int minor 0
+	json_add_string backend_version "$backend_version"
+	json_add_array features
+	json_add_string '' 'profiles.read'
+	json_add_string '' 'profiles.write'
+	json_add_string '' 'quick-actions'
+	json_add_string '' 'device-discovery'
+	json_add_string '' 'uci-apply-confirm'
+	json_close_array
+	json_add_string router_date "$(date +%F)"
+	json_add_string router_timezone "$router_timezone"
+	json_dump
+}
+
 rpc_set_enabled() {
 	json_load "$1" || { rpc_error 'Invalid JSON request'; return; }
 	json_get_var profile profile
@@ -184,6 +211,7 @@ rpc_validate() {
 case "$1" in
 	list)
 		json_init
+		json_add_object capabilities; json_close_object
 		json_add_object status; json_close_object
 		json_add_object set_enabled
 		json_add_string profile String
@@ -207,6 +235,7 @@ case "$1" in
 	call)
 		read -r request
 		case "$2" in
+			capabilities) rpc_capabilities ;;
 			status) rpc_status ;;
 			set_enabled) rpc_write rpc_set_enabled "$request" ;;
 			set_block) rpc_write rpc_set_block "$request" ;;

@@ -101,6 +101,18 @@ nft delete table inet owrtpc
 /usr/share/owrtpc/firewall.include
 nft list table inet owrtpc >/dev/null
 ubus call owrtpc status | grep -q profiles
+capabilities=$(ubus call owrtpc capabilities)
+printf '%s\n' "$capabilities" | jsonfilter -e '@.api' | grep -qx owrtpc-mobile
+printf '%s\n' "$capabilities" | jsonfilter -e '@.major' | grep -qx 1
+printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 0
+printf '%s\n' "$capabilities" | jsonfilter -e '@.backend_version' | grep -q '^0\.1\.0_alpha1-r[0-9][0-9]*$'
+printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.read
+printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.write
+printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx quick-actions
+printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx device-discovery
+printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx uci-apply-confirm
+printf '%s\n' "$capabilities" | jsonfilter -e '@.router_date' | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+printf '%s\n' "$capabilities" | jsonfilter -e '@.router_timezone' | grep -q .
 ubus call luci-rpc getDHCPLeases | grep -q dhcp_leases
 # Discovery must return data, not merely a registered empty object.
 uci set dhcp.package_test=host
@@ -126,6 +138,7 @@ check_access() {
 		jsonfilter -e '@.access' | grep -qx true
 }
 check_access ubus owrtpc status
+check_access ubus owrtpc capabilities
 check_access ubus owrtpc set_block
 check_access ubus owrtpc reset
 check_access ubus luci-rpc getHostHints
