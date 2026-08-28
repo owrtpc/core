@@ -6,6 +6,21 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0_alpha1-r24] - 2026-08-28
+
+### Added
+
+- Authenticated `owrtpc.capabilities` V1 handshake for the mobile client,
+  including API compatibility, backend version, supported features and the
+  router-authoritative date/timezone.
+- Read-only ACL coverage and package, policy, smoke and lifecycle tests for the
+  new capability method.
+
+### Documentation
+
+- Mobile application architecture, HTTPS certificate-pairing flow, JSON-RPC
+  contract, read model, accessibility requirements and delivery roadmap.
+
 ## [0.1.0_alpha1-r23] - 2026-08-26
 
 ### Added

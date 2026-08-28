@@ -86,7 +86,8 @@ details.
 
 The cross-platform companion is in its M0 contract and platform spike. Its
 separate repository now contains a Docker-first Flutter shell with the visual
-system, English/Italian localization and read-only fixture profiles. See
+system, English/Italian localization, secure certificate pairing and live
+read-only profiles. See
 [the mobile design](docs/MOBILE_APP.md) for the V1 scope, security boundary,
 interaction model and delivery roadmap.
 

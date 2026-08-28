@@ -309,9 +309,8 @@ disabled.
 
 ### Required V1 compatibility handshake
 
-The current r23 API is sufficient for LuCI but does not identify a versioned
-mobile contract. Before mobile implementation, the backend needs one
-read-only, authenticated method, provisionally `owrtpc.capabilities`, returning:
+From r24 the backend exposes the authenticated, read-only
+`owrtpc.capabilities` compatibility handshake:
 
 ```json
 {

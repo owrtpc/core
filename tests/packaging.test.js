@@ -44,7 +44,7 @@ for (const value of [
 	"json_add_string '' 'device-discovery'",
 	"json_add_string '' 'uci-apply-confirm'"
 ]) assert.ok(rpcPlugin.includes(value), value);
-assert.match(ui, /LUCI_EXTRA_DEPENDS:=owrtpc \(>=0.1.0_alpha1-r23\)/);
+assert.match(ui, /LUCI_EXTRA_DEPENDS:=owrtpc \(>=0.1.0_alpha1-r24\)/);
 for (const [dir, prefix] of [['owrtpc/files', ''], ['scripts', ''], ['docker', '']]) {
 	for (const file of files(dir)) {
 		const text = read(dir + '/' + file);
