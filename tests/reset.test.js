@@ -50,10 +50,12 @@ function harness({ writable = true, changes = {}, response = { success: true }, 
 	assert.equal(denied.modal, null, 'read-only users cannot open reset');
 	assert.equal(denied.calls.length, 0);
 	for (const access of [true, false, null]) {
-		const rendered = await denied.page.render([{}, {}, { profiles: [] }, {}, {}, null, access]);
+		const rendered = await denied.page.render([{}, {}, { profiles: [] }, {}, {}, null, access,
+			{ backend_version: '0.1.0-r1' }]);
 		const button = rendered.children[1].children[2];
 		assert.equal(button.disabled, access === true ? null : true,
 			'HTML disabled attribute is omitted only with an explicit RPC grant');
+		assert.equal(rendered.children[2].children, 'OWRTPC core version 0.1.0-r1');
 	}
 	const cancel = harness();
 	assert.equal(cancel.confirm.disabled, true);

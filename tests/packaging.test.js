@@ -51,6 +51,8 @@ assert.equal(ui.match(/^PKG_VERSION:=(.+)$/m)[1], packageVersion);
 assert.equal(ui.match(/^PKG_RELEASE:=(\d+)$/m)[1], packageRelease);
 assert.ok(ui.includes(`LUCI_EXTRA_DEPENDS:=owrtpc (>=${packageVersion}-r${packageRelease})`));
 const profileView = read('luci-app-owrtpc/htdocs/luci-static/resources/view/owrtpc/profiles-v2.js');
+assert.match(profileView, /method: 'capabilities'/);
+assert.match(profileView, /OWRTPC core version %s/);
 for (const option of [
 	'mon_thu_daily_minutes', 'fri_sun_daily_minutes',
 	'sun_thu_bedtime_start', 'sun_thu_bedtime_end',

@@ -7,6 +7,7 @@
 'require owrtpc.devices as devices';
 
 var callStatus = rpc.declare({ object: 'owrtpc', method: 'status', expect: { '': {} } });
+var callCapabilities = rpc.declare({ object: 'owrtpc', method: 'capabilities', expect: { '': {} } });
 var callSetEnabled = rpc.declare({ object: 'owrtpc', method: 'set_enabled', params: [ 'profile', 'enabled' ], expect: { '': {} } });
 var callSetBlock = rpc.declare({ object: 'owrtpc', method: 'set_block', params: [ 'profile', 'blocked' ], expect: { '': {} } });
 var callAddTime = rpc.declare({ object: 'owrtpc', method: 'add_time', params: [ 'profile', 'minutes' ], expect: { '': {} } });
@@ -228,12 +229,14 @@ return view.extend({
 			callDHCPLeases().catch(function() { return {}; }),
 			callHostHints().catch(function() { return {}; }),
 			uci.load('gl-client').catch(function() { return null; }),
-			callResetAccess('ubus', 'owrtpc', 'reset').catch(function() { return false; })
+			callResetAccess('ubus', 'owrtpc', 'reset').catch(function() { return false; }),
+			callCapabilities().catch(function() { return {}; })
 		]);
 	},
 
 	render: function(data) {
 		this.canReset = data[6] === true;
+		var coreVersion = (data[7] || {}).backend_version || '—';
 		window.setTimeout(showQueuedNotification, 0);
 		document.addEventListener('uci-applied', function() {
 			callRefresh().then(function(result) {
@@ -512,7 +515,8 @@ return view.extend({
 					'disabled': !this.canReset || null,
 					'click': ui.createHandlerFn(this, 'handleFullReset')
 				}, _('Reset all OWRTPC data'))
-			]) ]);
+			]), E('p', { 'class': 'cbi-section-descr' },
+				_('OWRTPC core version %s').format(coreVersion)) ]);
 		}, this));
 	}
 });
