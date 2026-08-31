@@ -6,6 +6,17 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-r1] - 2026-09-01
+
+### Release
+
+- Publish the first GitHub release of the standalone `owrtpc` backend and the
+  optional `luci-app-owrtpc` interface.
+- Promote the tested alpha package series to version 0.1.0. APK version
+  ordering treats `0.1.0-r1` as newer than `0.1.0_alpha1-r26`, so existing
+  split installations can upgrade normally without removing packages or data.
+- Retain the r26 parental-control behavior and stable signing key unchanged.
+
 ## [0.1.0_alpha1-r26] - 2026-08-31
 
 ### Fixed

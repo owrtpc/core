@@ -58,7 +58,7 @@ response is:
   "api": "owrtpc-mobile",
   "major": 1,
   "minor": 1,
-  "backend_version": "0.1.0_alpha1-r25",
+  "backend_version": "0.1.0-r1",
   "features": [
     "profiles.read",
     "profiles.write",

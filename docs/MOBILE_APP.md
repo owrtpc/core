@@ -327,7 +327,7 @@ From r24 the backend exposes the authenticated, read-only
   "api": "owrtpc-mobile",
   "major": 1,
   "minor": 1,
-  "backend_version": "0.1.0_alpha1-rNN",
+  "backend_version": "0.1.0-rNN",
   "features": [
     "profiles.read",
     "profiles.write",

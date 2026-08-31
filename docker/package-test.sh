@@ -128,7 +128,7 @@ capabilities=$(ubus call owrtpc capabilities)
 printf '%s\n' "$capabilities" | jsonfilter -e '@.api' | grep -qx owrtpc-mobile
 printf '%s\n' "$capabilities" | jsonfilter -e '@.major' | grep -qx 1
 printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 1
-printf '%s\n' "$capabilities" | jsonfilter -e '@.backend_version' | grep -q '^0\.1\.0_alpha1-r[0-9][0-9]*$'
+[ "$(printf '%s\n' "$capabilities" | jsonfilter -e '@.backend_version')" = "$version-r$release" ]
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.read
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.write
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx quick-actions
