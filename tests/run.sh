@@ -156,21 +156,54 @@ set_used children 180
 config_get() {
 	variable="$1"; section="$2"; option="$3"; default="$4"
 	case "$option" in
-		weekday_daily_minutes) value=2 ;;
-		weekend_daily_minutes) value=4 ;;
-		weekday_bedtime_start) value='21:30' ;;
-		weekday_bedtime_end) value='07:00' ;;
-		weekend_bedtime_start) value='23:00' ;;
-		weekend_bedtime_end) value='09:00' ;;
+		mon_thu_daily_minutes) value=2 ;;
+		fri_sun_daily_minutes) value=4 ;;
+		sun_thu_bedtime_start) value='21:30' ;;
+		sun_thu_bedtime_end) value='07:00' ;;
+		fri_sat_bedtime_start) value='23:00' ;;
+		fri_sat_bedtime_end) value='09:00' ;;
 		daily_minutes) value=0 ;;
 		bedtime_start|bedtime_end) value='' ;;
 		*) value="$default" ;;
 	esac
 	eval "$variable=\$value"
 }
-export OWRTPC_NOW_HHMM=22:00
+
+export OWRTPC_NOW_HHMM=12:00
 export OWRTPC_DAY_OF_WEEK=1
-assert_eq weekday "$(current_schedule)" 'Monday selects the weekday schedule'
+assert_eq mon_thu "$(current_allowance_period)" 'Monday selects the Monday-Thursday allowance'
+export OWRTPC_DAY_OF_WEEK=5
+assert_eq fri_sun "$(current_allowance_period)" 'Friday selects the Friday-Sunday allowance'
+assert_eq none "$(profile_reason children)" 'Friday uses the larger Friday-Sunday allowance'
+export OWRTPC_DAY_OF_WEEK=4
+assert_eq quota "$(profile_reason children)" 'Thursday uses the Monday-Thursday allowance'
+
+export OWRTPC_NOW_HHMM=08:00
+export OWRTPC_DAY_OF_WEEK=5
+profile_bedtime_active children && bedtime_friday_morning=yes || bedtime_friday_morning=no
+assert_eq no "$bedtime_friday_morning" 'Friday morning does not use the upcoming Friday-night hours'
+export OWRTPC_DAY_OF_WEEK=6
+profile_bedtime_active children && bedtime_saturday_morning=yes || bedtime_saturday_morning=no
+assert_eq yes "$bedtime_saturday_morning" 'Saturday morning continues the Friday-night bedtime'
+assert_eq fri_sat "$(profile_bedtime_period children)" 'Saturday morning reports the Friday-Saturday bedtime group'
+export OWRTPC_DAY_OF_WEEK=7
+profile_bedtime_active children && bedtime_sunday_morning=yes || bedtime_sunday_morning=no
+assert_eq yes "$bedtime_sunday_morning" 'Sunday morning continues the Saturday-night bedtime'
+status_row=$(status_profile children)
+assert_eq fri_sun "$(printf '%s\n' "$status_row" | cut -f11)" 'status exposes the independent allowance period'
+assert_eq fri_sat "$(printf '%s\n' "$status_row" | cut -f12)" 'status exposes the overnight bedtime period'
+export OWRTPC_DAY_OF_WEEK=1
+profile_bedtime_active children && bedtime_monday_morning=yes || bedtime_monday_morning=no
+assert_eq no "$bedtime_monday_morning" 'Monday morning ends with the Sunday-night school schedule'
+
+export OWRTPC_NOW_HHMM=22:00
+export OWRTPC_DAY_OF_WEEK=7
+assert_eq sun_thu "$(profile_bedtime_period children)" 'Sunday evening selects the Sunday-Thursday bedtime group'
+assert_eq bedtime "$(profile_reason children)" 'Sunday evening uses school-night bedtime hours'
+export OWRTPC_DAY_OF_WEEK=5
+assert_eq none "$(profile_reason children)" 'Friday evening stays allowed until the later bedtime'
+
+export OWRTPC_DAY_OF_WEEK=1
 set_bonus children 3600
 set_all_day children
 TEST_PROFILE_ENABLED=0
@@ -178,12 +211,12 @@ assert_eq disabled "$(profile_reason children)" 'a disabled profile bypasses bed
 assert_eq 3600 "$(get_bonus children)" 'disabled profiles retain unused extra time'
 assert_eq 1 "$(get_all_day children)" 'disabled profiles retain All Day state'
 TEST_PROFILE_ENABLED=1
-assert_eq bedtime "$(profile_reason children)" 'weekday bedtime uses weekday hours'
+assert_eq bedtime "$(profile_reason children)" 'Monday bedtime uses Sunday-Thursday hours'
 assert_eq 0 "$(get_bonus children)" 'bedtime discards extra time after re-enabling'
 assert_eq 0 "$(get_all_day children)" 'bedtime ends All Day after re-enabling'
 export OWRTPC_DAY_OF_WEEK=6
-assert_eq weekend "$(current_schedule)" 'Saturday selects the weekend schedule'
-assert_eq none "$(profile_reason children)" 'weekend uses its own quota and bedtime'
+assert_eq weekend "$(current_schedule)" 'Saturday keeps the legacy weekend allowance label'
+assert_eq none "$(profile_reason children)" 'Saturday uses its own quota and later bedtime'
 export OWRTPC_NOW_HHMM=23:30
 set_bonus children 3600
 set_all_day children

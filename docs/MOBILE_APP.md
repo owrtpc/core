@@ -36,7 +36,8 @@ nor duplicates the policy engine.
 3. Run immediate Block/Unblock, Enable/Disable, +1h, +4h and All Day actions.
 4. Create, edit, reorder and delete profiles.
 5. Assign discovered and offline configured devices to one profile at most.
-6. Edit weekday/weekend allowances and bedtime windows.
+6. Edit Monday–Thursday / Friday–Sunday allowances and independently grouped
+   Sunday–Thursday / Friday–Saturday bedtime windows.
 7. Explain connection, permission, session, validation and apply failures.
 8. Store secrets only in platform-protected storage when the user opts in.
 9. Support localization from the first build. V1 includes English and Italian,
@@ -218,8 +219,8 @@ The detail screen is read-only and presents:
 - today's state, usage, effective allowance and bedtime;
 - assigned devices with friendly name, address information when available and
   MAC address;
-- weekday allowance and bedtime;
-- weekend allowance and bedtime;
+- Monday–Thursday and Friday–Sunday allowances;
+- Sunday–Thursday and Friday–Saturday bedtime windows;
 - the profile-specific activity threshold only when overridden;
 - Edit and Delete actions.
 
@@ -234,8 +235,11 @@ The editor uses one scrollable form with these sections:
 2. **Devices**: searchable list merged with the same precedence as LuCI:
    optional vendor alias, host hints, DHCP leases, then MAC. Already assigned
    devices name their current profile and cannot be selected.
-3. **Weekdays**: daily allowance and optional bedtime start/end.
-4. **Weekends**: daily allowance and optional bedtime start/end.
+3. **Daily allowance**: separate Monday–Thursday and Friday–Sunday values.
+4. **Bedtime**: separate Sunday–Thursday and Friday–Saturday start/end values.
+   The UI explicitly says that each day identifies the evening when the window
+   starts, so Sunday night uses the Sunday–Thursday value and an overnight
+   Friday window continues into Saturday morning.
 5. **Activity detection**: collapsed advanced choice using the engine default,
    Sensitive (32 KiB/sample), Standard (128 KiB/sample) or Low sensitivity
    (256 KiB/sample).
@@ -275,8 +279,11 @@ ubus result code and redacted timing information.
 - A MAC address belongs to at most one profile.
 - Usage is cumulative device-minutes across enabled devices in a profile.
 - A disabled profile is neither accounted nor enforced.
-- The router's local calendar and timezone select weekday/weekend and day
-  rollover, not the phone clock.
+- The router's local calendar and timezone select the allowance period,
+  bedtime night and day rollover, not the phone clock.
+- Allowances use Monday–Thursday and Friday–Sunday groups. Bedtime independently
+  uses Sunday–Thursday and Friday–Saturday nights, anchored to the evening when
+  an overnight window starts.
 - `0` allowance means unlimited.
 - The latest +1h, +4h or All Day selection replaces the earlier selection.
 - Extra time ends at bedtime or day rollover and never carries into another
@@ -316,14 +323,15 @@ From r24 the backend exposes the authenticated, read-only
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 0,
+  "minor": 1,
   "backend_version": "0.1.0_alpha1-rNN",
   "features": [
     "profiles.read",
     "profiles.write",
     "quick-actions",
     "device-discovery",
-    "uci-apply-confirm"
+    "uci-apply-confirm",
+    "schedule-periods"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"

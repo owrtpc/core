@@ -8,7 +8,7 @@ OWRTPC has two packages from r22 onward:
 | `luci-app-owrtpc` | LuCI JavaScript, menu and translation sources | Optional web interface |
 
 Install `owrtpc` first and `luci-app-owrtpc` second. The current packages use
-version `0.1.0_alpha1-r24`; this UI requires backend r24 or newer. The backend
+version `0.1.0_alpha1-r25`; this UI requires backend r25 or newer. The backend
 has no dependency on `luci-base` or any web UI. `rpcd-mod-luci` is a standalone
 RPC module, required for DHCP leases and host hints despite its name.
 
@@ -27,8 +27,8 @@ once on the router (never copy the private signing key):
 cp /tmp/owrtpc-release.pem /etc/apk/keys/owrtpc-release.pem
 chmod 0644 /etc/apk/keys/owrtpc-release.pem
 apk update
-apk verify /tmp/owrtpc-0.1.0_alpha1-r24.apk
-apk verify /tmp/luci-app-owrtpc-0.1.0_alpha1-r24.apk
+apk verify /tmp/owrtpc-0.1.0_alpha1-r25.apk
+apk verify /tmp/luci-app-owrtpc-0.1.0_alpha1-r25.apk
 ```
 
 The public key is `keys/owrtpc-release.pem` in `owrtpc/core`. The split does not
@@ -39,9 +39,9 @@ or distributed as releases.
 ## Clean installation
 
 ```sh
-apk add /tmp/owrtpc-0.1.0_alpha1-r24.apk
+apk add /tmp/owrtpc-0.1.0_alpha1-r25.apk
 # Optional:
-apk add /tmp/luci-app-owrtpc-0.1.0_alpha1-r24.apk
+apk add /tmp/luci-app-owrtpc-0.1.0_alpha1-r25.apk
 ```
 
 For a backend-only installation, stop after the first command. Local CLI and
@@ -52,9 +52,9 @@ configure remote access. See [API.md](API.md) for the transport boundary.
 
 After trusting the release public key, open **System > Software** (called
 **Package Manager** on some LuCI versions), select **Upload Package**, and
-upload `owrtpc-0.1.0_alpha1-r24.apk`. Wait for successful installation and
+upload `owrtpc-0.1.0_alpha1-r25.apk`. Wait for successful installation and
 resolution of its dependencies. Then upload
-`luci-app-owrtpc-0.1.0_alpha1-r24.apk` in a second operation. Refresh LuCI and
+`luci-app-owrtpc-0.1.0_alpha1-r25.apk` in a second operation. Refresh LuCI and
 open **Services > Parental Control**.
 
 Uploading the UI alone does not provide the local backend APK: it cannot be

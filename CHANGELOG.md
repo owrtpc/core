@@ -6,6 +6,23 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0_alpha1-r25] - 2026-08-31
+
+### Changed
+
+- Daily allowances now use explicit Monday–Thursday and Friday–Sunday periods.
+- Bedtime independently uses Sunday–Thursday and Friday–Saturday nights,
+  anchored to the evening when an overnight window starts.
+- LuCI names every day range instead of conflating both policies under generic
+  weekday/weekend labels.
+- Mobile API contract 1.1 adds `schedule-periods` capability plus explicit
+  `allowance_period` and `bedtime_period` status fields.
+
+### Compatibility
+
+- New period-specific UCI options take precedence while existing `weekday_*`,
+  `weekend_*` and original unscheduled options remain supported as fallbacks.
+
 ## [0.1.0_alpha1-r24] - 2026-08-28
 
 ### Added

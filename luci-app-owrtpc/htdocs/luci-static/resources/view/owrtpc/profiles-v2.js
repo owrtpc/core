@@ -108,6 +108,13 @@ function scheduleValue(sectionId, schedule, option, legacyOption, fallback) {
 	return value == null || value === '' ? fallback : value;
 }
 
+function periodValue(sectionId, period, compatibilitySchedule, option, legacyOption, fallback) {
+	var value = uci.get('owrtpc', sectionId, period + '_' + option);
+	return value == null || value === ''
+		? scheduleValue(sectionId, compatibilitySchedule, option, legacyOption, fallback)
+		: value;
+}
+
 function validateTime(value, example) {
 	return !value || /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(value) ||
 		_('Use HH:MM, for example %s.').format(example);
@@ -330,15 +337,17 @@ return view.extend({
 		o.modalonly = true;
 		o.description = _('Advanced fallback for unusually noisy or quiet profiles. Automatic session detection normally handles standby traffic and buffering gaps.');
 
-		o = s.option(form.DummyValue, '_schedule', _('Today'));
+		o = s.option(form.DummyValue, '_allowance_period', _('Today\'s allowance group'));
 		o.cfgvalue = function(sectionId) {
-			return status[sectionId] && status[sectionId].schedule === 'weekend' ? _('Weekend') : _('Weekday');
+			return status[sectionId] && status[sectionId].allowance_period === 'fri_sun'
+				? _('Friday–Sunday') : _('Monday–Thursday');
 		};
 		o = s.option(form.DummyValue, '_allowance', _('Today\'s allowance'));
 		o.cfgvalue = function(sectionId) {
-			var schedule = status[sectionId] ? status[sectionId].schedule : 'weekday';
-			var minutes = Number(scheduleValue(sectionId, schedule, 'daily_minutes', 'daily_minutes', '0')) || 0;
 			var profileStatus = status[sectionId] || {};
+			var period = profileStatus.allowance_period || 'mon_thu';
+			var compatibilitySchedule = period === 'fri_sun' ? 'weekend' : 'weekday';
+			var minutes = Number(periodValue(sectionId, period, compatibilitySchedule, 'daily_minutes', 'daily_minutes', '0')) || 0;
 			if (profileStatus.all_day === true)
 				return _('Unlimited today');
 			var label = minutes ? _('%d min').format(minutes) : _('Unlimited');
@@ -347,48 +356,50 @@ return view.extend({
 		};
 		o = s.option(form.DummyValue, '_bedtime', _('Today\'s bedtime'));
 		o.cfgvalue = function(sectionId) {
-			var schedule = status[sectionId] ? status[sectionId].schedule : 'weekday';
-			var start = scheduleValue(sectionId, schedule, 'bedtime_start', 'bedtime_start', '');
-			var end = scheduleValue(sectionId, schedule, 'bedtime_end', 'bedtime_end', '');
-			return start && end ? '%s–%s'.format(start, end) : _('Disabled');
+			var period = status[sectionId] ? status[sectionId].bedtime_period : 'sun_thu';
+			var compatibilitySchedule = period === 'fri_sat' ? 'weekend' : 'weekday';
+			var start = periodValue(sectionId, period, compatibilitySchedule, 'bedtime_start', 'bedtime_start', '');
+			var end = periodValue(sectionId, period, compatibilitySchedule, 'bedtime_end', 'bedtime_end', '');
+			var group = period === 'fri_sat' ? _('Friday–Saturday nights') : _('Sunday–Thursday nights');
+			return start && end ? _('%s–%s (%s)').format(start, end, group) : _('Disabled (%s)').format(group);
 		};
 
-		o = s.option(form.Value, 'weekday_daily_minutes', _('Weekday allowance (minutes)'));
+		o = s.option(form.Value, 'mon_thu_daily_minutes', _('Allowance Monday–Thursday (minutes)'));
 		o.datatype = 'uinteger';
 		o.default = '0';
 		o.rmempty = false;
 		o.modalonly = true;
-		o.description = _('Monday through Friday. Cumulative across the profile devices; use 0 for unlimited.');
-		o.cfgvalue = function(sectionId) { return scheduleValue(sectionId, 'weekday', 'daily_minutes', 'daily_minutes', '0'); };
-		o = s.option(form.Value, 'weekend_daily_minutes', _('Weekend allowance (minutes)'));
+		o.description = _('Monday through Thursday. Cumulative across the profile devices; use 0 for unlimited.');
+		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'mon_thu', 'weekday', 'daily_minutes', 'daily_minutes', '0'); };
+		o = s.option(form.Value, 'fri_sun_daily_minutes', _('Allowance Friday–Sunday (minutes)'));
 		o.datatype = 'uinteger';
 		o.default = '0';
 		o.rmempty = false;
 		o.modalonly = true;
-		o.description = _('Saturday and Sunday. Cumulative across the profile devices; use 0 for unlimited.');
-		o.cfgvalue = function(sectionId) { return scheduleValue(sectionId, 'weekend', 'daily_minutes', 'daily_minutes', '0'); };
+		o.description = _('Friday through Sunday. Cumulative across the profile devices; use 0 for unlimited.');
+		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'fri_sun', 'weekend', 'daily_minutes', 'daily_minutes', '0'); };
 
-		o = s.option(form.Value, 'weekday_bedtime_start', _('Weekday bedtime starts'));
+		o = s.option(form.Value, 'sun_thu_bedtime_start', _('Bedtime Sunday–Thursday starts'));
 		o.placeholder = '21:30';
 		o.modalonly = true;
-		o.description = _('Router local time. Leave both weekday bedtime fields empty to disable.');
-		o.cfgvalue = function(sectionId) { return scheduleValue(sectionId, 'weekday', 'bedtime_start', 'bedtime_start', ''); };
+		o.description = _('The day identifies the evening when bedtime starts. Router local time; leave both Sunday–Thursday fields empty to disable.');
+		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'sun_thu', 'weekday', 'bedtime_start', 'bedtime_start', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '21:30'); };
-		o = s.option(form.Value, 'weekday_bedtime_end', _('Weekday bedtime ends'));
+		o = s.option(form.Value, 'sun_thu_bedtime_end', _('Bedtime Sunday–Thursday ends'));
 		o.placeholder = '07:00';
 		o.modalonly = true;
-		o.cfgvalue = function(sectionId) { return scheduleValue(sectionId, 'weekday', 'bedtime_end', 'bedtime_end', ''); };
+		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'sun_thu', 'weekday', 'bedtime_end', 'bedtime_end', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '07:00'); };
-		o = s.option(form.Value, 'weekend_bedtime_start', _('Weekend bedtime starts'));
+		o = s.option(form.Value, 'fri_sat_bedtime_start', _('Bedtime Friday–Saturday starts'));
 		o.placeholder = '23:00';
 		o.modalonly = true;
-		o.description = _('Router local time. Leave both weekend bedtime fields empty to disable.');
-		o.cfgvalue = function(sectionId) { return scheduleValue(sectionId, 'weekend', 'bedtime_start', 'bedtime_start', ''); };
+		o.description = _('The day identifies the evening when bedtime starts. Router local time; leave both Friday–Saturday fields empty to disable.');
+		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'fri_sat', 'weekend', 'bedtime_start', 'bedtime_start', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '23:00'); };
-		o = s.option(form.Value, 'weekend_bedtime_end', _('Weekend bedtime ends'));
+		o = s.option(form.Value, 'fri_sat_bedtime_end', _('Bedtime Friday–Saturday ends'));
 		o.placeholder = '09:00';
 		o.modalonly = true;
-		o.cfgvalue = function(sectionId) { return scheduleValue(sectionId, 'weekend', 'bedtime_end', 'bedtime_end', ''); };
+		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'fri_sat', 'weekend', 'bedtime_end', 'bedtime_end', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '09:00'); };
 
 		o = s.option(form.DummyValue, '_usage', _('Used today'));

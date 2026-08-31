@@ -37,14 +37,26 @@ const rpcPlugin = read('owrtpc/files/usr/libexec/rpcd/owrtpc');
 for (const value of [
 	"json_add_string api 'owrtpc-mobile'",
 	'json_add_int major 1',
-	'json_add_int minor 0',
+	'json_add_int minor 1',
 	"json_add_string '' 'profiles.read'",
 	"json_add_string '' 'profiles.write'",
 	"json_add_string '' 'quick-actions'",
 	"json_add_string '' 'device-discovery'",
-	"json_add_string '' 'uci-apply-confirm'"
+	"json_add_string '' 'uci-apply-confirm'",
+	"json_add_string '' 'schedule-periods'"
 ]) assert.ok(rpcPlugin.includes(value), value);
-assert.match(ui, /LUCI_EXTRA_DEPENDS:=owrtpc \(>=0.1.0_alpha1-r24\)/);
+assert.match(ui, /LUCI_EXTRA_DEPENDS:=owrtpc \(>=0.1.0_alpha1-r25\)/);
+const profileView = read('luci-app-owrtpc/htdocs/luci-static/resources/view/owrtpc/profiles-v2.js');
+for (const option of [
+	'mon_thu_daily_minutes', 'fri_sun_daily_minutes',
+	'sun_thu_bedtime_start', 'sun_thu_bedtime_end',
+	'fri_sat_bedtime_start', 'fri_sat_bedtime_end'
+]) assert.ok(profileView.includes(`s.option(form.Value, '${option}'`), option);
+for (const legacyOption of [
+	'weekday_daily_minutes', 'weekend_daily_minutes',
+	'weekday_bedtime_start', 'weekday_bedtime_end',
+	'weekend_bedtime_start', 'weekend_bedtime_end'
+]) assert.ok(!profileView.includes(`s.option(form.Value, '${legacyOption}'`), legacyOption);
 for (const [dir, prefix] of [['owrtpc/files', ''], ['scripts', ''], ['docker', '']]) {
 	for (const file of files(dir)) {
 		const text = read(dir + '/' + file);

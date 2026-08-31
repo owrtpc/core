@@ -69,11 +69,47 @@ is_bedtime() {
 	fi
 }
 
-current_schedule() {
+current_day_of_week() {
 	day_of_week="${OWRTPC_DAY_OF_WEEK:-$(date +%u)}"
 	case "$day_of_week" in
-		6|7) printf 'weekend\n' ;;
-		*) printf 'weekday\n' ;;
+		1|2|3|4|5|6|7) printf '%s\n' "$day_of_week" ;;
+		*) return 1 ;;
+	esac
+}
+
+previous_day_of_week() {
+	case "$1" in
+		1) printf '7\n' ;;
+		2|3|4|5|6|7) printf '%s\n' $(($1 - 1)) ;;
+		*) return 1 ;;
+	esac
+}
+
+allowance_period_for_day() {
+	case "$1" in
+		1|2|3|4) printf 'mon_thu\n' ;;
+		5|6|7) printf 'fri_sun\n' ;;
+		*) return 1 ;;
+	esac
+}
+
+bedtime_period_for_day() {
+	case "$1" in
+		7|1|2|3|4) printf 'sun_thu\n' ;;
+		5|6) printf 'fri_sat\n' ;;
+		*) return 1 ;;
+	esac
+}
+
+current_allowance_period() {
+	allowance_period_for_day "$(current_day_of_week)"
+}
+
+# Kept for status/API compatibility. It now describes the allowance group.
+current_schedule() {
+	case "$(current_allowance_period)" in
+		mon_thu) printf 'weekday\n' ;;
+		fri_sun) printf 'weekend\n' ;;
 	esac
 }
 
@@ -89,6 +125,44 @@ profile_schedule_value() {
 		config_get value "$profile" "$legacy_option" "$default"
 	fi
 	printf '%s\n' "$value"
+}
+
+profile_period_value() {
+	profile="$1"
+	period="$2"
+	compatibility_schedule="$3"
+	option="$4"
+	legacy_option="$5"
+	default="$6"
+	value=''
+	config_get value "$profile" "${period}_${option}" ''
+	if [ -z "$value" ]; then
+		value=$(profile_schedule_value "$profile" "$compatibility_schedule" "$option" "$legacy_option" "$default")
+	fi
+	printf '%s\n' "$value"
+}
+
+profile_allowance_value() {
+	profile="$1"
+	period="$2"
+	case "$period" in
+		mon_thu) compatibility_schedule=weekday ;;
+		fri_sun) compatibility_schedule=weekend ;;
+		*) return 1 ;;
+	esac
+	profile_period_value "$profile" "$period" "$compatibility_schedule" daily_minutes daily_minutes 0
+}
+
+profile_bedtime_value() {
+	profile="$1"
+	period="$2"
+	option="$3"
+	case "$period" in
+		sun_thu) compatibility_schedule=weekday ;;
+		fri_sat) compatibility_schedule=weekend ;;
+		*) return 1 ;;
+	esac
+	profile_period_value "$profile" "$period" "$compatibility_schedule" "$option" "$option" ''
 }
 
 ensure_state() {
@@ -244,13 +318,55 @@ replace_time_credit() {
 	fi
 }
 
+profile_bedtime_continues_from_previous_day() {
+	profile="$1"
+	day_of_week=$(current_day_of_week)
+	previous_day=$(previous_day_of_week "$day_of_week")
+	period=$(bedtime_period_for_day "$previous_day")
+	bedtime_start=$(profile_bedtime_value "$profile" "$period" bedtime_start)
+	bedtime_end=$(profile_bedtime_value "$profile" "$period" bedtime_end)
+	valid_time "$bedtime_start" || return 1
+	valid_time "$bedtime_end" || return 1
+	start_minutes=$(time_minutes "$bedtime_start")
+	end_minutes=$(time_minutes "$bedtime_end")
+	[ "$start_minutes" -gt "$end_minutes" ] || return 1
+	now_hhmm="${OWRTPC_NOW_HHMM:-$(date +%H:%M)}"
+	[ "$(time_minutes "$now_hhmm")" -lt "$end_minutes" ]
+}
+
+profile_bedtime_starts_today() {
+	profile="$1"
+	period=$(bedtime_period_for_day "$(current_day_of_week)")
+	bedtime_start=$(profile_bedtime_value "$profile" "$period" bedtime_start)
+	bedtime_end=$(profile_bedtime_value "$profile" "$period" bedtime_end)
+	valid_time "$bedtime_start" || return 1
+	valid_time "$bedtime_end" || return 1
+	start_minutes=$(time_minutes "$bedtime_start")
+	end_minutes=$(time_minutes "$bedtime_end")
+	[ "$start_minutes" -ne "$end_minutes" ] || return 1
+	now_hhmm="${OWRTPC_NOW_HHMM:-$(date +%H:%M)}"
+	now_minutes=$(time_minutes "$now_hhmm")
+	if [ "$start_minutes" -lt "$end_minutes" ]; then
+		[ "$now_minutes" -ge "$start_minutes" ] && [ "$now_minutes" -lt "$end_minutes" ]
+	else
+		[ "$now_minutes" -ge "$start_minutes" ]
+	fi
+}
+
+profile_bedtime_period() {
+	profile="$1"
+	if profile_bedtime_continues_from_previous_day "$profile"; then
+		previous_day=$(previous_day_of_week "$(current_day_of_week)")
+		bedtime_period_for_day "$previous_day"
+	else
+		bedtime_period_for_day "$(current_day_of_week)"
+	fi
+}
+
 profile_bedtime_active() {
 	profile="$1"
-	schedule=$(current_schedule)
-	bedtime_start=$(profile_schedule_value "$profile" "$schedule" bedtime_start bedtime_start '')
-	bedtime_end=$(profile_schedule_value "$profile" "$schedule" bedtime_end bedtime_end '')
-	now_hhmm="${OWRTPC_NOW_HHMM:-$(date +%H:%M)}"
-	is_bedtime "$bedtime_start" "$bedtime_end" "$(time_minutes "$now_hhmm")"
+	profile_bedtime_continues_from_previous_day "$profile" ||
+		profile_bedtime_starts_today "$profile"
 }
 
 profile_reason() {
@@ -275,8 +391,8 @@ profile_reason() {
 		return
 	fi
 
-	schedule=$(current_schedule)
-	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
+	allowance_period=$(current_allowance_period)
+	daily_minutes=$(profile_allowance_value "$profile" "$allowance_period")
 	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
 	used=$(get_used "$profile")
 	bonus=$(get_bonus "$profile")
@@ -319,15 +435,17 @@ validate_profile() {
 		'') ;;
 		*[!0-9]*|0) validation_error "profile $profile has invalid activity_threshold_bytes" ;;
 	esac
-	for schedule in weekday weekend; do
-		daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
+	for allowance_period in mon_thu fri_sun; do
+		daily_minutes=$(profile_allowance_value "$profile" "$allowance_period")
 		case "$daily_minutes" in
-			''|*[!0-9]*) validation_error "profile $profile has invalid ${schedule}_daily_minutes" ;;
+			''|*[!0-9]*) validation_error "profile $profile has invalid ${allowance_period}_daily_minutes" ;;
 		esac
-		start=$(profile_schedule_value "$profile" "$schedule" bedtime_start bedtime_start '')
-		end=$(profile_schedule_value "$profile" "$schedule" bedtime_end bedtime_end '')
+	done
+	for bedtime_period in sun_thu fri_sat; do
+		start=$(profile_bedtime_value "$profile" "$bedtime_period" bedtime_start)
+		end=$(profile_bedtime_value "$profile" "$bedtime_period" bedtime_end)
 		if { [ -n "$start" ] || [ -n "$end" ]; } && { ! valid_time "$start" || ! valid_time "$end"; }; then
-			validation_error "profile $profile has an incomplete or invalid $schedule bedtime"
+			validation_error "profile $profile has an incomplete or invalid $bedtime_period bedtime"
 		fi
 	done
 	config_list_foreach "$profile" device validate_device "$profile"
@@ -620,15 +738,15 @@ sample_device() {
 
 sample_profile() {
 	local profile="$1"
-	local profile_enabled schedule daily_minutes reason
+	local profile_enabled allowance_period daily_minutes reason
 	config_get_bool profile_enabled "$profile" enabled 1
 	if [ "$profile_enabled" -ne 1 ]; then
 		config_list_foreach "$profile" device clear_device_activity
 		return
 	fi
 
-	schedule=$(current_schedule)
-	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
+	allowance_period=$(current_allowance_period)
+	daily_minutes=$(profile_allowance_value "$profile" "$allowance_period")
 	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
 	if [ "$daily_minutes" -eq 0 ]; then
 		config_list_foreach "$profile" device clear_device_activity
@@ -698,8 +816,10 @@ sample_usage() {
 status_profile() {
 	profile="$1"
 	config_get name "$profile" name "$profile"
+	allowance_period=$(current_allowance_period)
 	schedule=$(current_schedule)
-	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
+	bedtime_period=$(profile_bedtime_period "$profile")
+	daily_minutes=$(profile_allowance_value "$profile" "$allowance_period")
 	case "$daily_minutes" in ''|*[!0-9]*) daily_minutes=0 ;; esac
 	used=$(get_used "$profile")
 	reason=$(profile_reason "$profile")
@@ -717,13 +837,13 @@ status_profile() {
 		[ "$remaining" -ge 0 ] || remaining=0
 	}
 	config_get_bool manual "$profile" blocked 0
-	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$profile" "$name" "$used" "$limit" "$remaining" "$reason" "$manual" "$schedule" "$bonus" "$all_day"
+	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$profile" "$name" "$used" "$limit" "$remaining" "$reason" "$manual" "$schedule" "$bonus" "$all_day" "$allowance_period" "$bedtime_period"
 }
 
 status_all() {
 	ensure_state
 	config_load owrtpc
-	printf 'section\tname\tused_seconds\tlimit_seconds\tremaining_seconds\treason\tmanual_blocked\tschedule\tbonus_seconds\tall_day\n'
+	printf 'section\tname\tused_seconds\tlimit_seconds\tremaining_seconds\treason\tmanual_blocked\tschedule\tbonus_seconds\tall_day\tallowance_period\tbedtime_period\n'
 	config_foreach status_profile profile
 }
 
@@ -775,8 +895,8 @@ add_time() {
 		checkpoint_state
 		return 2
 	fi
-	schedule=$(current_schedule)
-	daily_minutes=$(profile_schedule_value "$profile" "$schedule" daily_minutes daily_minutes 0)
+	allowance_period=$(current_allowance_period)
+	daily_minutes=$(profile_allowance_value "$profile" "$allowance_period")
 	case "$daily_minutes" in ''|*[!0-9]*|0) return 3 ;; esac
 	replace_time_credit "$profile" "$seconds"
 	checkpoint_state

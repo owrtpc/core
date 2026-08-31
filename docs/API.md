@@ -57,14 +57,15 @@ response is:
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 0,
-  "backend_version": "0.1.0_alpha1-r24",
+  "minor": 1,
+  "backend_version": "0.1.0_alpha1-r25",
   "features": [
     "profiles.read",
     "profiles.write",
     "quick-actions",
     "device-discovery",
-    "uci-apply-confirm"
+    "uci-apply-confirm",
+    "schedule-periods"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -82,6 +83,11 @@ authorization. The client must still inspect `session.access`: a read-only
 account can receive `profiles.write` in the capabilities list while its write UI
 remains absent. Missing `owrtpc.capabilities`, another `api`, or an unsupported
 major version is an incompatible backend rather than a generic network error.
+
+Contract 1.1 keeps the historical `schedule` status value as the allowance
+compatibility group and adds explicit `allowance_period` (`mon_thu` or
+`fri_sun`) and `bedtime_period` (`sun_thu` or `fri_sat`) fields. The latter is
+anchored to the evening that started an active overnight window.
 
 Quick actions commit immediately. Profile editing uses rpcd/UCI staging and
 apply/confirm; do not treat a successful `uci.set` as a committed change.

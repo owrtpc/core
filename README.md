@@ -12,8 +12,10 @@ The first milestone supports:
 
 - independent profiles;
 - multiple devices per profile, with one profile at most per device;
-- weekday and weekend profile allowances shared cumulatively by all devices;
-- separate weekday and weekend bedtime windows, including midnight crossing;
+- Monday–Thursday and Friday–Sunday profile allowances shared cumulatively by
+  all devices;
+- Sunday–Thursday and Friday–Saturday bedtime windows, including midnight
+  crossing and the following morning;
 - immediate manual block/unblock, +1h, +4h and All Day quick actions;
 - replacement-based same-day extra time (+1h, +4h or All Day), discarded at bedtime or day rollover;
 - native LuCI notifications for quick-action results;
@@ -22,8 +24,8 @@ The first milestone supports:
 
 ## Daily allowance semantics
 
-Allowances are stored in minutes per profile, separately for Monday-Friday and
-Saturday-Sunday. Usage is measured in
+Allowances are stored in minutes per profile, separately for Monday–Thursday
+and Friday–Sunday. Usage is measured in
 **device-minutes**. If two devices assigned to the same profile are active for
 30 minutes at the same time, that profile consumes 60 minutes. Usage belonging
 to another profile is accounted independently.
@@ -46,9 +48,11 @@ cumulative profile total. They are checkpointed with profile usage and reset at
 the local day boundary. After upgrading from an older release, usage already
 accumulated earlier that day remains unattributed until the next daily reset.
 
-The router's local calendar selects the weekday or weekend schedule. Usage
-still resets at each local calendar-day boundary, so each day receives the
-allowance configured for its schedule.
+The router's local calendar selects the allowance period. Usage still resets
+at each local calendar-day boundary, so each day receives the allowance
+configured for its period. Bedtime is selected independently by the evening
+when it starts: Sunday–Thursday use the earlier group and Friday–Saturday the
+later group. An overnight window continues with that same group after midnight.
 
 ## Repository layout
 

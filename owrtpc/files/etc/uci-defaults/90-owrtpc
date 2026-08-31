@@ -18,5 +18,40 @@ if [ -z "$activity_threshold" ] || [ "$activity_threshold" = '1024' ]; then
 	uci commit owrtpc
 fi
 
+# r25 gives allowances and bedtime independent, explicit day ranges. Copy the
+# old values once, then remove them so clearing a new field cannot reveal a
+# stale compatibility fallback later.
+migrate_period_option() {
+	section="$1"
+	new_option="$2"
+	compatibility_option="$3"
+	legacy_option="$4"
+	default_value="$5"
+	value=$(uci -q get "owrtpc.$section.$new_option")
+	if [ -z "$value" ]; then
+		value=$(uci -q get "owrtpc.$section.$compatibility_option")
+	fi
+	if [ -z "$value" ]; then
+		value=$(uci -q get "owrtpc.$section.$legacy_option")
+	fi
+	[ -n "$value" ] || value="$default_value"
+	[ -z "$value" ] || uci set "owrtpc.$section.$new_option=$value"
+}
+
+for profile in $(uci -q show owrtpc | sed -n 's/^owrtpc\.\([^=]*\)=profile$/\1/p'); do
+	migrate_period_option "$profile" mon_thu_daily_minutes weekday_daily_minutes daily_minutes 0
+	migrate_period_option "$profile" fri_sun_daily_minutes weekend_daily_minutes daily_minutes 0
+	migrate_period_option "$profile" sun_thu_bedtime_start weekday_bedtime_start bedtime_start ''
+	migrate_period_option "$profile" sun_thu_bedtime_end weekday_bedtime_end bedtime_end ''
+	migrate_period_option "$profile" fri_sat_bedtime_start weekend_bedtime_start bedtime_start ''
+	migrate_period_option "$profile" fri_sat_bedtime_end weekend_bedtime_end bedtime_end ''
+	for old_option in daily_minutes weekday_daily_minutes weekend_daily_minutes \
+		bedtime_start bedtime_end weekday_bedtime_start weekday_bedtime_end \
+		weekend_bedtime_start weekend_bedtime_end; do
+		uci -q delete "owrtpc.$profile.$old_option"
+	done
+done
+uci commit owrtpc
+
 /etc/init.d/owrtpc enable
 exit 0

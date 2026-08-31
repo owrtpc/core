@@ -50,6 +50,8 @@ if [ "$mode" = upgrade ] || [ "$mode" = split-upgrade ]; then
 	uci set owrtpc.preserved=profile
 	uci set owrtpc.preserved.name='Preserved profile'
 	uci set owrtpc.preserved.daily_minutes=90
+	uci set owrtpc.preserved.weekday_daily_minutes=60
+	uci set owrtpc.preserved.weekend_daily_minutes=120
 	uci add_list owrtpc.preserved.device=02:11:22:33:44:55
 	uci commit owrtpc
 	/etc/init.d/owrtpc restart
@@ -76,13 +78,34 @@ else
 	fi
 fi
 apk --allow-untrusted add "$backend"
+[ ! -x /etc/uci-defaults/90-owrtpc ] || /etc/uci-defaults/90-owrtpc
 apk info --who-owns /usr/sbin/owrtpcctl | grep -q 'owrtpc-'
 apk info --who-owns /usr/libexec/rpcd/owrtpc | grep -q 'owrtpc-'
 apk info --who-owns /usr/share/rpcd/acl.d/owrtpc.json | grep -q 'owrtpc-'
 grep -qx '/etc/config/owrtpc' /lib/apk/packages/owrtpc.conffiles
 grep -qx '/etc/owrtpc/state/' /lib/upgrade/keep.d/owrtpc
 if [ "$mode" = upgrade ] || [ "$mode" = split-upgrade ]; then
-	cmp /etc/config/owrtpc /tmp/expected-config
+	# Exercise bedtime migration after upgrade without making package restart
+	# behavior depend on the container's wall clock.
+	uci set owrtpc.preserved.weekday_bedtime_start=21:30
+	uci set owrtpc.preserved.weekday_bedtime_end=07:00
+	uci set owrtpc.preserved.weekend_bedtime_start=23:00
+	uci set owrtpc.preserved.weekend_bedtime_end=09:00
+	uci commit owrtpc
+	/project/owrtpc/files/etc/uci-defaults/90-owrtpc
+	[ "$(uci -q get owrtpc.main.sample_interval)" = 3600 ]
+	[ "$(uci -q get owrtpc.main.activity_threshold_bytes)" = 262144 ]
+	[ "$(uci -q get owrtpc.preserved.mon_thu_daily_minutes)" = 60 ]
+	[ "$(uci -q get owrtpc.preserved.fri_sun_daily_minutes)" = 120 ]
+	[ "$(uci -q get owrtpc.preserved.sun_thu_bedtime_start)" = 21:30 ]
+	[ "$(uci -q get owrtpc.preserved.sun_thu_bedtime_end)" = 07:00 ]
+	[ "$(uci -q get owrtpc.preserved.fri_sat_bedtime_start)" = 23:00 ]
+	[ "$(uci -q get owrtpc.preserved.fri_sat_bedtime_end)" = 09:00 ]
+	! uci -q get owrtpc.preserved.daily_minutes >/dev/null
+	! uci -q get owrtpc.preserved.weekday_daily_minutes >/dev/null
+	! uci -q get owrtpc.preserved.weekend_daily_minutes >/dev/null
+	[ "$(uci -q get owrtpc.preserved.name)" = 'Preserved profile' ]
+	[ "$(uci -q get owrtpc.preserved.device)" = '02:11:22:33:44:55' ]
 	[ "$(cat /tmp/owrtpc/profile-preserved.used)" = 321 ]
 	[ "$(cat /etc/owrtpc/state/profile-preserved.used)" = 321 ]
 	[ "$(cat /tmp/owrtpc/profile-preserved.bonus)" = 3600 ]
@@ -104,13 +127,14 @@ ubus call owrtpc status | grep -q profiles
 capabilities=$(ubus call owrtpc capabilities)
 printf '%s\n' "$capabilities" | jsonfilter -e '@.api' | grep -qx owrtpc-mobile
 printf '%s\n' "$capabilities" | jsonfilter -e '@.major' | grep -qx 1
-printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 0
+printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 1
 printf '%s\n' "$capabilities" | jsonfilter -e '@.backend_version' | grep -q '^0\.1\.0_alpha1-r[0-9][0-9]*$'
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.read
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.write
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx quick-actions
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx device-discovery
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx uci-apply-confirm
+printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx schedule-periods
 printf '%s\n' "$capabilities" | jsonfilter -e '@.router_date' | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
 printf '%s\n' "$capabilities" | jsonfilter -e '@.router_timezone' | grep -q .
 ubus call luci-rpc getDHCPLeases | grep -q dhcp_leases

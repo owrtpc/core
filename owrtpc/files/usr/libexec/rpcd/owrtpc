@@ -62,7 +62,7 @@ rpc_status() {
 	tab=$(printf '\t')
 	{
 		IFS= read -r _header
-		while IFS="$tab" read -r section name used limit remaining reason manual schedule bonus all_day; do
+		while IFS="$tab" read -r section name used limit remaining reason manual schedule bonus all_day allowance_period bedtime_period; do
 			[ -n "$section" ] || continue
 			json_add_object ''
 			json_add_string section "$section"
@@ -73,6 +73,8 @@ rpc_status() {
 			json_add_string reason "${reason:-none}"
 			json_add_boolean manual_blocked "${manual:-0}"
 			json_add_string schedule "${schedule:-weekday}"
+			json_add_string allowance_period "${allowance_period:-mon_thu}"
+			json_add_string bedtime_period "${bedtime_period:-sun_thu}"
 			json_add_int bonus_seconds "${bonus:-0}"
 			json_add_boolean all_day "${all_day:-0}"
 			case "$reason" in none|disabled) json_add_boolean blocked 0 ;; *) json_add_boolean blocked 1 ;; esac
@@ -97,7 +99,7 @@ rpc_capabilities() {
 	json_init
 	json_add_string api 'owrtpc-mobile'
 	json_add_int major 1
-	json_add_int minor 0
+	json_add_int minor 1
 	json_add_string backend_version "$backend_version"
 	json_add_array features
 	json_add_string '' 'profiles.read'
@@ -105,6 +107,7 @@ rpc_capabilities() {
 	json_add_string '' 'quick-actions'
 	json_add_string '' 'device-discovery'
 	json_add_string '' 'uci-apply-confirm'
+	json_add_string '' 'schedule-periods'
 	json_close_array
 	json_add_string router_date "$(date +%F)"
 	json_add_string router_timezone "$router_timezone"

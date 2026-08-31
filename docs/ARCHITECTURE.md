@@ -31,18 +31,19 @@ contains:
 - `name`: display name;
 - `enabled`: whether the policy is enforced and accounted;
 - `blocked`: explicit quick-block state;
-- `weekday_daily_minutes`, `weekend_daily_minutes`: independent daily
+- `mon_thu_daily_minutes`, `fri_sun_daily_minutes`: independent daily
   allowances; `0` means unlimited;
-- `weekday_bedtime_start`, `weekday_bedtime_end` and their `weekend_*`
-  counterparts: local `HH:MM` values; an empty pair means disabled;
+- `sun_thu_bedtime_start`, `sun_thu_bedtime_end` and their `fri_sat_*`
+  counterparts: local `HH:MM` values grouped by the evening when bedtime
+  starts; an empty pair means disabled;
 - one or more `list device` values containing canonical MAC addresses;
 - optional `activity_threshold_bytes`, overriding the global activity threshold
   for profiles containing unusually quiet devices.
 
-For upgrade compatibility, the engine uses the legacy `daily_minutes`,
-`bedtime_start` and `bedtime_end` values when a corresponding schedule-specific
-option is absent. Saving the profile in the current LuCI UI writes the new
-options.
+For upgrade compatibility, the engine first falls back from the explicit
+period options to `weekday_*`/`weekend_*`, then to the legacy `daily_minutes`,
+`bedtime_start` and `bedtime_end` values. Saving the profile in the current LuCI
+UI writes the explicit period options.
 
 The same normalized MAC address must not occur in two profiles. The UI and
 backend both validate this invariant. If malformed configuration is written
@@ -53,7 +54,7 @@ blocking the duplicated MAC and reports a validation error.
 
 At every sample, the engine reads the byte counters accumulated by each device
 in the OWRTPC nftables table. Session detection runs only for enabled profiles
-whose current weekday or weekend allowance is finite. A first interval reaching
+whose current Monday–Thursday or Friday–Sunday allowance is finite. A first interval reaching
 the profile threshold (or the global 128 KiB default) creates a candidate; a
 second event within five minutes confirms the session and accounts the pending
 elapsed time. While active, quiet intervals remain provisional for three
@@ -72,11 +73,14 @@ owrtpc system log without logging every sampling interval.
 Runtime usage and same-day extra-time credit live in `/tmp/owrtpc`. They are
 checkpointed to `/etc/owrtpc/state` at a configurable interval (15 minutes by
 default), trading at most one checkpoint interval of usage after sudden power
-loss for lower flash wear. Extra credit increases only the current day's effective limit. All Day makes
-that limit temporarily unlimited. Both modes are deleted when the active
-bedtime window begins and at the next local calendar-day boundary, so neither
-can carry into another allowance.
-All dates and bedtime rules use the router's configured local timezone.
+loss for lower flash wear. Extra credit increases only the current day's
+effective limit. All Day makes that limit temporarily unlimited. Both modes are
+deleted when the active bedtime window begins and at the next local
+calendar-day boundary, so neither can carry into another allowance. An
+overnight bedtime remains attached to the evening when it started: for example,
+Saturday morning continues Friday night's Friday–Saturday window, while Sunday
+evening uses the Sunday–Thursday window. All dates and bedtime rules use the
+router's configured local timezone.
 
 ## Enforcement
 
@@ -87,7 +91,7 @@ blocked when at least one of these applies:
 
 - manual `blocked` flag;
 - current local time is in its bedtime window;
-- `used_seconds >= current_schedule_daily_minutes * 60`.
+- `used_seconds >= current_allowance_period_daily_minutes * 60`.
 
 Only traffic leaving through the L3 devices resolved from `monitored_network`
 (by default `wan` and `wan6`) is counted and blocked. Local LAN traffic remains
