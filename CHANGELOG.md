@@ -6,6 +6,25 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0_alpha1-r26] - 2026-08-31
+
+### Fixed
+
+- Numeric quick-time actions now grant the selected amount as usable time from
+  current consumption instead of storing a fixed bonus relative to the daily
+  allowance. Repeating `+4h`, or selecting `+1h` after `+4h`, therefore resets
+  the remaining temporary time to the latest selection rather than leaving an
+  already exhausted limit or accumulating both actions.
+- An unused daily allowance is never shortened by a quick-time action, and
+  bedtime continues to take priority over every temporary extension.
+- LuCI now reports `Unlimited today` in the Remaining column while All Day is
+  active instead of exposing the backend's unlimited sentinel as zero.
+
+### Changed
+
+- LuCI describes numeric overrides as an active temporary extension rather
+  than displaying their internal persisted offset from the base allowance.
+
 ## [0.1.0_alpha1-r25] - 2026-08-31
 
 ### Changed

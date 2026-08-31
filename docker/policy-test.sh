@@ -27,6 +27,8 @@ set -eu
 	diagnostics=$(/usr/sbin/owrtpcctl diagnostics)
 	printf "%s\n" "$diagnostics" | grep -q "used_seconds.*activity_state.*last_bytes"
 	printf "%s\n" "$diagnostics" | grep -q "docker_test.*02:42:AC:11:00:02"
+	# Quick time actions grant the selected remaining time after exhaustion.
+	printf '3600\n' > /tmp/owrtpc/profile-docker_test.used
 	bonus=$(ubus -s /var/run/ubus/ubus.sock call owrtpc add_time "{\"profile\":\"docker_test\",\"minutes\":240}")
 	printf "%s\n" "$bonus" | grep -q "\"added_seconds\": 14400"
 	bonus=$(ubus -s /var/run/ubus/ubus.sock call owrtpc add_time "{\"profile\":\"docker_test\",\"minutes\":60}")

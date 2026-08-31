@@ -92,8 +92,11 @@ anchored to the evening that started an active overnight window.
 Quick actions commit immediately. Profile editing uses rpcd/UCI staging and
 apply/confirm; do not treat a successful `uci.set` as a committed change.
 `owrtpc.refresh` applies the committed configuration. `add_time` accepts 60,
-240 and the existing `all-day` value (the plugin's historical Int32 declaration
-and rpcd string coercion remain unchanged in this reorganization).
+240 and the existing `all-day` value. A numeric value sets that amount of
+usable time from the action's current usage, replacing any prior temporary
+credit without reducing a larger unused base allowance. Bedtime and day
+rollover still discard it. The historical Int32 declaration and rpcd string
+coercion remain unchanged.
 
 ## Full reset (r23+)
 

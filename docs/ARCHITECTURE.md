@@ -73,8 +73,11 @@ owrtpc system log without logging every sampling interval.
 Runtime usage and same-day extra-time credit live in `/tmp/owrtpc`. They are
 checkpointed to `/etc/owrtpc/state` at a configurable interval (15 minutes by
 default), trading at most one checkpoint interval of usage after sudden power
-loss for lower flash wear. Extra credit increases only the current day's
-effective limit. All Day makes that limit temporarily unlimited. Both modes are
+loss for lower flash wear. A numeric quick action derives a temporary limit
+from the usage already consumed, leaving the selected one or four hours
+available from that action. A later numeric action replaces the remaining
+temporary credit instead of stacking it; the unused base allowance is never
+shortened. All Day makes the current day temporarily unlimited. Both modes are
 deleted when the active bedtime window begins and at the next local
 calendar-day boundary, so neither can carry into another allowance. An
 overnight bedtime remains attached to the evening when it started: for example,

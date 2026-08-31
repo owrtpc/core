@@ -8,6 +8,8 @@ const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const core = read('owrtpc/Makefile');
 const ui = read('luci-app-owrtpc/Makefile');
+const packageVersion = core.match(/^PKG_VERSION:=(.+)$/m)[1];
+const packageRelease = core.match(/^PKG_RELEASE:=(\d+)$/m)[1];
 assert.match(core, /include \$\(INCLUDE_DIR\)\/package.mk/);
 for (const dep of ['rpcd', 'rpcd-mod-luci', 'firewall4', 'nftables-json', 'jshn', 'jsonfilter', 'uci', 'ubus'])
 	assert.ok(core.match(/^  DEPENDS:=(.*)$/m)[1].split(/\s+/).includes('+' + dep), dep);
@@ -45,7 +47,9 @@ for (const value of [
 	"json_add_string '' 'uci-apply-confirm'",
 	"json_add_string '' 'schedule-periods'"
 ]) assert.ok(rpcPlugin.includes(value), value);
-assert.match(ui, /LUCI_EXTRA_DEPENDS:=owrtpc \(>=0.1.0_alpha1-r25\)/);
+assert.equal(ui.match(/^PKG_VERSION:=(.+)$/m)[1], packageVersion);
+assert.equal(ui.match(/^PKG_RELEASE:=(\d+)$/m)[1], packageRelease);
+assert.ok(ui.includes(`LUCI_EXTRA_DEPENDS:=owrtpc (>=${packageVersion}-r${packageRelease})`));
 const profileView = read('luci-app-owrtpc/htdocs/luci-static/resources/view/owrtpc/profiles-v2.js');
 for (const option of [
 	'mon_thu_daily_minutes', 'fri_sun_daily_minutes',

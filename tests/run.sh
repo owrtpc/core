@@ -237,9 +237,18 @@ set_used children 3720
 assert_eq quota "$(profile_reason children)" 'profile blocks after base allowance and extra time are exhausted'
 set_all_day children
 assert_eq none "$(profile_reason children)" 'All Day overrides an exhausted quota'
-replace_time_credit children 14400
-replace_time_credit children 3600
-assert_eq 3600 "$(get_bonus children)" 'the latest numeric quick action replaces the previous credit'
+set_used children 14433
+replace_remaining_time children 14400 14400
+assert_eq 14433 "$(get_bonus children)" 'four-hour action accounts for quota overshoot'
+assert_eq 14400 "$((14400 + $(get_bonus children) - $(get_used children)))" 'four-hour action grants four hours from current usage'
+set_used children 21633
+replace_remaining_time children 14400 3600
+assert_eq 10833 "$(get_bonus children)" 'latest numeric action replaces the prior temporary limit'
+assert_eq 3600 "$((14400 + $(get_bonus children) - $(get_used children)))" 'one-hour action leaves exactly one hour from current usage'
+set_used children 28855
+replace_remaining_time children 14400 14400
+assert_eq 28855 "$(get_bonus children)" 'repeated four-hour action advances the temporary limit'
+assert_eq 14400 "$((14400 + $(get_bonus children) - $(get_used children)))" 'repeated four-hour action grants another four hours'
 assert_eq 0 "$(get_all_day children)" 'a numeric quick action disables All Day'
 replace_time_credit children all-day
 assert_eq 0 "$(get_bonus children)" 'All Day replaces a numeric credit'

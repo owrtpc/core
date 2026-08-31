@@ -318,6 +318,20 @@ replace_time_credit() {
 	fi
 }
 
+replace_remaining_time() {
+	profile="$1"
+	base_limit="$2"
+	seconds="$3"
+	safe_id "$profile" || return 1
+	case "$base_limit:$seconds" in
+		*[!0-9:]*|:*|*:) return 1 ;;
+	esac
+	used=$(get_used "$profile")
+	target_limit=$((used + seconds))
+	[ "$target_limit" -ge "$base_limit" ] || target_limit="$base_limit"
+	replace_time_credit "$profile" $((target_limit - base_limit))
+}
+
 profile_bedtime_continues_from_previous_day() {
 	profile="$1"
 	day_of_week=$(current_day_of_week)
@@ -898,7 +912,11 @@ add_time() {
 	allowance_period=$(current_allowance_period)
 	daily_minutes=$(profile_allowance_value "$profile" "$allowance_period")
 	case "$daily_minutes" in ''|*[!0-9]*|0) return 3 ;; esac
-	replace_time_credit "$profile" "$seconds"
+	if [ "$seconds" = 'all-day' ]; then
+		replace_time_credit "$profile" "$seconds"
+	else
+		replace_remaining_time "$profile" $((daily_minutes * 60)) "$seconds"
+	fi
 	checkpoint_state
 	apply_policy
 }

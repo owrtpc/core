@@ -285,7 +285,10 @@ ubus result code and redacted timing information.
   uses Sunday–Thursday and Friday–Saturday nights, anchored to the evening when
   an overnight window starts.
 - `0` allowance means unlimited.
-- The latest +1h, +4h or All Day selection replaces the earlier selection.
+- After the base allowance is exhausted, +1h or +4h leaves exactly that much
+  usable time from the action. Repeating an action advances the temporary
+  limit from current usage; selecting a different duration replaces the
+  remaining credit. An unused base allowance is never shortened.
 - Extra time ends at bedtime or day rollover and never carries into another
   budget.
 - Bedtime has priority over extra time.

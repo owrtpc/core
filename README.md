@@ -17,7 +17,8 @@ The first milestone supports:
 - Sunday–Thursday and Friday–Saturday bedtime windows, including midnight
   crossing and the following morning;
 - immediate manual block/unblock, +1h, +4h and All Day quick actions;
-- replacement-based same-day extra time (+1h, +4h or All Day), discarded at bedtime or day rollover;
+- replacement-based same-day extra time: +1h or +4h sets that much time
+  available from the action, without shortening the unused base allowance;
 - native LuCI notifications for quick-action results;
 - full OWRTPC data reset with explicit confirmation, without reinstalling packages;
 - lightweight usage accounting with periodic, configurable flash checkpoints.

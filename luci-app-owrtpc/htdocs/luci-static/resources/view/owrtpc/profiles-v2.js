@@ -352,7 +352,7 @@ return view.extend({
 				return _('Unlimited today');
 			var label = minutes ? _('%d min').format(minutes) : _('Unlimited');
 			var bonus = Number(profileStatus.bonus_seconds) || 0;
-			return bonus ? _('%s (+%s extra)').format(label, formatDuration(bonus)) : label;
+			return bonus ? _('%s (temporary extension active)').format(label) : label;
 		};
 		o = s.option(form.DummyValue, '_bedtime', _('Today\'s bedtime'));
 		o.cfgvalue = function(sectionId) {
@@ -408,6 +408,8 @@ return view.extend({
 		o.cfgvalue = function(sectionId) {
 			if (!status[sectionId])
 				return '—';
+			if (status[sectionId].all_day === true)
+				return _('Unlimited today');
 			return status[sectionId].limit_seconds ? formatDuration(status[sectionId].remaining_seconds) : _('Unlimited');
 		};
 		o = s.option(form.DummyValue, '_state', _('State'));
