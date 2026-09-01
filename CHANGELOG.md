@@ -6,6 +6,16 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-r2] - 2026-09-01
+
+### Added
+
+- Show the installed OWRTPC core version at the bottom of the main LuCI page,
+  using the existing authenticated capabilities RPC without exposing the
+  independently packaged LuCI version.
+- Keep the main interface usable when the optional version lookup is
+  temporarily unavailable.
+
 ## [0.1.0-r1] - 2026-09-01
 
 ### Release
