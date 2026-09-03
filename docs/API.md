@@ -57,15 +57,16 @@ response is:
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 1,
-  "backend_version": "0.1.0-r1",
+  "minor": 2,
+  "backend_version": "0.1.0-r3",
   "features": [
     "profiles.read",
     "profiles.write",
     "quick-actions",
     "device-discovery",
     "uci-apply-confirm",
-    "schedule-periods"
+    "schedule-periods",
+    "device-usage"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -88,6 +89,12 @@ Contract 1.1 keeps the historical `schedule` status value as the allowance
 compatibility group and adds explicit `allowance_period` (`mon_thu` or
 `fri_sun`) and `bedtime_period` (`sun_thu` or `fri_sat`) fields. The latter is
 anchored to the evening that started an active overnight window.
+
+Contract 1.2 adds a `devices` array to each `owrtpc.status` profile. Every
+configured device is represented by its normalized `mac` and diagnostic
+`used_seconds` counter. This counter explains per-device activity; the profile
+counter remains authoritative for shared allowance enforcement and must not be
+reconstructed by summing device counters.
 
 Quick actions commit immediately. Profile editing uses rpcd/UCI staging and
 apply/confirm; do not treat a successful `uci.set` as a committed change.

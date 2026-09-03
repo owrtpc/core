@@ -39,14 +39,17 @@ const rpcPlugin = read('owrtpc/files/usr/libexec/rpcd/owrtpc');
 for (const value of [
 	"json_add_string api 'owrtpc-mobile'",
 	'json_add_int major 1',
-	'json_add_int minor 1',
+	'json_add_int minor 2',
 	"json_add_string '' 'profiles.read'",
 	"json_add_string '' 'profiles.write'",
 	"json_add_string '' 'quick-actions'",
 	"json_add_string '' 'device-discovery'",
 	"json_add_string '' 'uci-apply-confirm'",
-	"json_add_string '' 'schedule-periods'"
+	"json_add_string '' 'schedule-periods'",
+	"json_add_string '' 'device-usage'"
 ]) assert.ok(rpcPlugin.includes(value), value);
+assert.match(rpcPlugin, /json_add_array devices/);
+assert.match(rpcPlugin, /"\$OWRTPCCTL" diagnostics/);
 assert.equal(ui.match(/^PKG_VERSION:=(.+)$/m)[1], packageVersion);
 assert.equal(ui.match(/^PKG_RELEASE:=(\d+)$/m)[1], packageRelease);
 assert.ok(ui.includes(`LUCI_EXTRA_DEPENDS:=owrtpc (>=${packageVersion}-r${packageRelease})`));

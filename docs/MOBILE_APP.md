@@ -326,7 +326,7 @@ From r24 the backend exposes the authenticated, read-only
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 1,
+  "minor": 2,
   "backend_version": "0.1.0-rNN",
   "features": [
     "profiles.read",
@@ -334,7 +334,8 @@ From r24 the backend exposes the authenticated, read-only
     "quick-actions",
     "device-discovery",
     "uci-apply-confirm",
-    "schedule-periods"
+    "schedule-periods",
+    "device-usage"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -351,7 +352,7 @@ V1 composes its view from the existing authenticated APIs:
 
 | Need | API |
 | --- | --- |
-| Live state and reasons | `owrtpc.status` |
+| Live state, reasons and per-device usage | `owrtpc.status` |
 | Committed profiles/settings | `uci` reads limited to `owrtpc` |
 | Host names and addresses | `luci-rpc.getHostHints` |
 | Current DHCP leases | `luci-rpc.getDHCPLeases` |

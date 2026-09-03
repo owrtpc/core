@@ -114,6 +114,11 @@ fi
 uci -q delete owrtpc.main.monitored_network || true
 uci add_list owrtpc.main.monitored_device=eth0
 uci set owrtpc.main.sample_interval=3600
+uci set owrtpc.package_details=profile
+uci set owrtpc.package_details.name='Package details fixture'
+uci set owrtpc.package_details.enabled=1
+uci set owrtpc.package_details.mon_thu_daily_minutes=60
+uci add_list owrtpc.package_details.device=02:AA:BB:CC:DD:EF
 uci commit owrtpc
 /etc/init.d/owrtpc restart
 /etc/init.d/rpcd restart
@@ -123,11 +128,15 @@ owrtpcctl validate | grep -qx OK
 nft delete table inet owrtpc
 /usr/share/owrtpc/firewall.include
 nft list table inet owrtpc >/dev/null
-ubus call owrtpc status | grep -q profiles
+printf '456\n' > /tmp/owrtpc/device-02AABBCCDDEF.used
+status=$(ubus call owrtpc status)
+printf '%s\n' "$status" | grep -q profiles
+printf '%s\n' "$status" | grep -q '02:AA:BB:CC:DD:EF'
+printf '%s\n' "$status" | grep -q '"used_seconds": 456'
 capabilities=$(ubus call owrtpc capabilities)
 printf '%s\n' "$capabilities" | jsonfilter -e '@.api' | grep -qx owrtpc-mobile
 printf '%s\n' "$capabilities" | jsonfilter -e '@.major' | grep -qx 1
-printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 1
+printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 2
 [ "$(printf '%s\n' "$capabilities" | jsonfilter -e '@.backend_version')" = "$version-r$release" ]
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.read
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.write
@@ -135,6 +144,7 @@ printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx quick-a
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx device-discovery
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx uci-apply-confirm
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx schedule-periods
+printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx device-usage
 printf '%s\n' "$capabilities" | jsonfilter -e '@.router_date' | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
 printf '%s\n' "$capabilities" | jsonfilter -e '@.router_timezone' | grep -q .
 ubus call luci-rpc getDHCPLeases | grep -q dhcp_leases

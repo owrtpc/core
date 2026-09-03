@@ -6,6 +6,14 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-r3] - 2026-09-03
+
+### Added
+
+- Mobile API contract 1.2 exposes each configured device's diagnostic usage
+  counter inside its profile status, enabling a read-only profile detail view.
+- Advertise the optional `device-usage` capability to compatible clients.
+
 ## [0.1.0-r2] - 2026-09-01
 
 ### Added

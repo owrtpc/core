@@ -51,9 +51,18 @@ rpc_reset() {
 
 rpc_status() {
 	status_file=$(mktemp /tmp/owrtpc-rpc-status.XXXXXX) || return 1
-	if ! "$OWRTPCCTL" status > "$status_file"; then
+	diagnostics_file=$(mktemp /tmp/owrtpc-rpc-diagnostics.XXXXXX) || {
 		rm -f "$status_file"
+		return 1
+	}
+	if ! "$OWRTPCCTL" status > "$status_file"; then
+		rm -f "$status_file" "$diagnostics_file"
 		rpc_error 'Unable to read OWRTPC status'
+		return
+	fi
+	if ! "$OWRTPCCTL" diagnostics > "$diagnostics_file"; then
+		rm -f "$status_file" "$diagnostics_file"
+		rpc_error 'Unable to read OWRTPC device usage'
 		return
 	fi
 	json_init
@@ -78,12 +87,24 @@ rpc_status() {
 			json_add_int bonus_seconds "${bonus:-0}"
 			json_add_boolean all_day "${all_day:-0}"
 			case "$reason" in none|disabled) json_add_boolean blocked 0 ;; *) json_add_boolean blocked 1 ;; esac
+			json_add_array devices
+			{
+				IFS= read -r _diagnostics_header
+				while IFS="$tab" read -r device_profile _device_name device_mac device_used _activity_state _candidate _quiet _last_bytes _last_significant _last_sample; do
+					[ "$device_profile" = "$section" ] || continue
+					json_add_object ''
+					json_add_string mac "$device_mac"
+					json_add_int used_seconds "${device_used:-0}"
+					json_close_object
+				done
+			} < "$diagnostics_file"
+			json_close_array
 			json_close_object
 		done
 	} < "$status_file"
 	json_close_array
 	json_dump
-	rm -f "$status_file"
+	rm -f "$status_file" "$diagnostics_file"
 }
 
 rpc_capabilities() {
@@ -99,7 +120,7 @@ rpc_capabilities() {
 	json_init
 	json_add_string api 'owrtpc-mobile'
 	json_add_int major 1
-	json_add_int minor 1
+	json_add_int minor 2
 	json_add_string backend_version "$backend_version"
 	json_add_array features
 	json_add_string '' 'profiles.read'
@@ -108,6 +129,7 @@ rpc_capabilities() {
 	json_add_string '' 'device-discovery'
 	json_add_string '' 'uci-apply-confirm'
 	json_add_string '' 'schedule-periods'
+	json_add_string '' 'device-usage'
 	json_close_array
 	json_add_string router_date "$(date +%F)"
 	json_add_string router_timezone "$router_timezone"
