@@ -52,6 +52,12 @@ set -eu
 	printf '%s\n' "$created_status" | grep -q '"name": "Created Docker Test"'
 	stale_create=$(ubus -s /var/run/ubus/ubus.sock call owrtpc profile_create "{\"expected_revision\":\"$current_revision\",\"name\":\"Stale create\",\"enabled\":true,\"mon_thu_daily_minutes\":0,\"fri_sun_daily_minutes\":0,\"sun_thu_bedtime_start\":\"\",\"sun_thu_bedtime_end\":\"\",\"fri_sat_bedtime_start\":\"\",\"fri_sat_bedtime_end\":\"\",\"activity_threshold_bytes\":0,\"devices\":[]}")
 	printf '%s\n' "$stale_create" | grep -q '"code": "conflicting_edit"'
+	# Keep quick-action assertions independent of the container wall clock.
+	uci -q delete owrtpc.docker_test.sun_thu_bedtime_start || true
+	uci -q delete owrtpc.docker_test.sun_thu_bedtime_end || true
+	uci commit owrtpc
+	refresh=$(ubus -s /var/run/ubus/ubus.sock call owrtpc refresh)
+	printf "%s\n" "$refresh" | grep -q '"success": true'
 	diagnostics=$(/usr/sbin/owrtpcctl diagnostics)
 	printf "%s\n" "$diagnostics" | grep -q "used_seconds.*activity_state.*last_bytes"
 	printf "%s\n" "$diagnostics" | grep -q "docker_test.*02:42:AC:11:00:02"
