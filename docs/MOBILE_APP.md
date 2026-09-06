@@ -326,7 +326,7 @@ From r24 the backend exposes the authenticated, read-only
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 2,
+  "minor": 3,
   "backend_version": "0.1.0-rNN",
   "features": [
     "profiles.read",
@@ -335,7 +335,8 @@ From r24 the backend exposes the authenticated, read-only
     "device-discovery",
     "uci-apply-confirm",
     "schedule-periods",
-    "device-usage"
+    "device-usage",
+    "profile-edit-transaction"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -373,7 +374,26 @@ the app never retries a write automatically after an unknown result. It reads
 
 ### Configuration apply
 
-Configuration editing preserves rpcd/UCI staging and apply/confirm semantics:
+Backends advertising `profile-edit-transaction` use the backend-owned edit
+snapshot and compare-and-apply operation:
+
+1. Read `owrtpc.edit_snapshot`, retaining its revision with the local draft.
+2. Build and validate the complete local draft without changing the router.
+3. Submit the complete profile and retained revision to
+   `owrtpc.profile_apply`.
+4. Treat `conflicting_edit` as a stale draft and never automatically retry it.
+5. Read live status and a new edit snapshot, then report success only when both
+   match the submitted draft.
+
+The backend serializes official OWRTPC actions, validates the complete
+configuration and restores the previous configuration if policy application
+fails. This replaces the previously planned generic UCI write path: rpcd delta
+files contain new values but not the values they replace, so a separate
+preflight read cannot make a later `uci.apply` compare-and-set atomic.
+
+Legacy backends exposing only UCI apply/confirm remain read-only in the mobile
+editor. The generic flow below is retained as background for compatibility
+testing, not as an enabled production write path:
 
 1. Build and validate a complete local draft without changing the router.
 2. Re-read committed configuration immediately before writing and stop if the
@@ -391,12 +411,11 @@ The app never stages firewall or vendor-package writes. It does not apply or
 discard another session's changes. A successful `uci.set` is only "staged", not
 "saved".
 
-Before shipping profile writes, an integration fixture must prove the exact
+Before enabling any legacy profile writes, an integration fixture must prove the exact
 OpenWrt 25.12 UCI apply/confirm request and rollback behaviour through the HTTP
-bridge, including session expiry between apply and confirm. If the generic UCI
-surface cannot reliably detect concurrent committed edits, V1 profile editing
-must wait for a backend-owned compare-and-apply method rather than accept silent
-last-writer-wins behaviour.
+bridge, including session expiry between apply and confirm. The generic UCI
+surface does not provide an expected-value comparison during apply, so V1 uses
+the backend-owned method rather than accept silent last-writer-wins behaviour.
 
 ### Error model
 

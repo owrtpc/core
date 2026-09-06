@@ -5,6 +5,7 @@
 			"ubus": {
 				"owrtpc": [
 					"capabilities",
+					"edit_snapshot",
 					"status",
 					"validate"
 				],
@@ -23,6 +24,7 @@
 			"ubus": {
 				"owrtpc": [
 					"add_time",
+					"profile_apply",
 					"set_enabled",
 					"set_block",
 					"refresh",
@@ -49,6 +51,7 @@
 			"ubus": {
 				"owrtpc": [
 					"capabilities",
+					"edit_snapshot",
 					"status",
 					"validate"
 				],
@@ -67,6 +70,7 @@
 			"ubus": {
 				"owrtpc": [
 					"add_time",
+					"profile_apply",
 					"set_enabled",
 					"set_block",
 					"refresh",

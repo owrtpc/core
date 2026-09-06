@@ -6,6 +6,16 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-r4] - 2026-09-06
+
+### Added
+
+- Mobile API contract 1.3 adds an edit snapshot and a backend-owned profile
+  update transaction with an expected configuration revision.
+- Profile updates validate the complete configuration, reject stale drafts and
+  duplicate device assignments, serialize with other OWRTPC actions, and
+  restore the prior configuration if policy application fails.
+
 ## [0.1.0-r3] - 2026-09-03
 
 ### Added

@@ -24,6 +24,19 @@ set -eu
 	printf "%s\n" "$capabilities" | grep -q '"major": 1'
 	status=$(ubus -s /var/run/ubus/ubus.sock call owrtpc status)
 	printf "%s\n" "$status" | grep -q "\"section\": \"docker_test\""
+	snapshot=$(ubus -s /var/run/ubus/ubus.sock call owrtpc edit_snapshot)
+	revision=$(printf '%s\n' "$snapshot" | jsonfilter -e '@.revision')
+	[ "${#revision}" -eq 64 ]
+	printf '%s\n' "$snapshot" | grep -q '"section": "docker_test"'
+	apply=$(ubus -s /var/run/ubus/ubus.sock call owrtpc profile_apply "{\"expected_revision\":\"$revision\",\"section\":\"docker_test\",\"name\":\"Edited Docker Test\",\"enabled\":true,\"mon_thu_daily_minutes\":90,\"fri_sun_daily_minutes\":60,\"sun_thu_bedtime_start\":\"21:30\",\"sun_thu_bedtime_end\":\"07:00\",\"fri_sat_bedtime_start\":\"\",\"fri_sat_bedtime_end\":\"\",\"activity_threshold_bytes\":32768,\"devices\":[\"02:42:ac:11:00:02\"]}")
+	printf '%s\n' "$apply" | grep -q '"success": true'
+	[ "$(uci -q get owrtpc.docker_test.name)" = 'Edited Docker Test' ]
+	[ "$(uci -q get owrtpc.docker_test.mon_thu_daily_minutes)" = 90 ]
+	[ "$(uci -q get owrtpc.docker_test.fri_sun_daily_minutes)" = 60 ]
+	[ "$(uci -q get owrtpc.docker_test.device)" = '02:42:AC:11:00:02' ]
+	conflict=$(ubus -s /var/run/ubus/ubus.sock call owrtpc profile_apply "{\"expected_revision\":\"$revision\",\"section\":\"docker_test\",\"name\":\"Stale edit\",\"enabled\":true,\"mon_thu_daily_minutes\":30,\"fri_sun_daily_minutes\":30,\"sun_thu_bedtime_start\":\"\",\"sun_thu_bedtime_end\":\"\",\"fri_sat_bedtime_start\":\"\",\"fri_sat_bedtime_end\":\"\",\"activity_threshold_bytes\":0,\"devices\":[]}")
+	printf '%s\n' "$conflict" | grep -q '"code": "conflicting_edit"'
+	[ "$(uci -q get owrtpc.docker_test.name)" = 'Edited Docker Test' ]
 	diagnostics=$(/usr/sbin/owrtpcctl diagnostics)
 	printf "%s\n" "$diagnostics" | grep -q "used_seconds.*activity_state.*last_bytes"
 	printf "%s\n" "$diagnostics" | grep -q "docker_test.*02:42:AC:11:00:02"

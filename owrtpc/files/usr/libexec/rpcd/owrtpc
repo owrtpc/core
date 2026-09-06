@@ -14,6 +14,26 @@ safe_profile() {
 	esac
 }
 
+config_revision() {
+	uci -q export owrtpc 2>/dev/null | sha256sum | cut -d' ' -f1
+}
+
+valid_time() {
+	printf '%s\n' "$1" | grep -Eq '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+}
+
+valid_bedtime_pair() {
+	[ -z "$1$2" ] || { valid_time "$1" && valid_time "$2"; }
+}
+
+normalize_mac() {
+	printf '%s' "$1" | tr 'abcdef' 'ABCDEF'
+}
+
+valid_mac() {
+	printf '%s\n' "$1" | grep -Eq '^[[:xdigit:]]{2}(:[[:xdigit:]]{2}){5}$'
+}
+
 rpc_error() {
 	json_init
 	json_add_boolean success 0
@@ -107,6 +127,220 @@ rpc_status() {
 	rm -f "$status_file" "$diagnostics_file"
 }
 
+snapshot_device() {
+	json_add_string '' "$(normalize_mac "$1")"
+}
+
+snapshot_profile() {
+	section="$1"
+	config_get name "$section" name "$section"
+	config_get_bool enabled "$section" enabled 1
+	config_get_bool blocked "$section" blocked 0
+	config_get mon_thu "$section" mon_thu_daily_minutes ''
+	[ -n "$mon_thu" ] || config_get mon_thu "$section" weekday_daily_minutes ''
+	[ -n "$mon_thu" ] || config_get mon_thu "$section" daily_minutes 0
+	config_get fri_sun "$section" fri_sun_daily_minutes ''
+	[ -n "$fri_sun" ] || config_get fri_sun "$section" weekend_daily_minutes ''
+	[ -n "$fri_sun" ] || config_get fri_sun "$section" daily_minutes 0
+	config_get sun_start "$section" sun_thu_bedtime_start ''
+	[ -n "$sun_start" ] || config_get sun_start "$section" weekday_bedtime_start ''
+	[ -n "$sun_start" ] || config_get sun_start "$section" bedtime_start ''
+	config_get sun_end "$section" sun_thu_bedtime_end ''
+	[ -n "$sun_end" ] || config_get sun_end "$section" weekday_bedtime_end ''
+	[ -n "$sun_end" ] || config_get sun_end "$section" bedtime_end ''
+	config_get fri_start "$section" fri_sat_bedtime_start ''
+	[ -n "$fri_start" ] || config_get fri_start "$section" weekend_bedtime_start ''
+	[ -n "$fri_start" ] || config_get fri_start "$section" bedtime_start ''
+	config_get fri_end "$section" fri_sat_bedtime_end ''
+	[ -n "$fri_end" ] || config_get fri_end "$section" weekend_bedtime_end ''
+	[ -n "$fri_end" ] || config_get fri_end "$section" bedtime_end ''
+	config_get threshold "$section" activity_threshold_bytes 0
+
+	json_add_object ''
+	json_add_string section "$section"
+	json_add_string name "$name"
+	json_add_boolean enabled "$enabled"
+	json_add_boolean blocked "$blocked"
+	json_add_int mon_thu_daily_minutes "${mon_thu:-0}"
+	json_add_int fri_sun_daily_minutes "${fri_sun:-0}"
+	json_add_string sun_thu_bedtime_start "$sun_start"
+	json_add_string sun_thu_bedtime_end "$sun_end"
+	json_add_string fri_sat_bedtime_start "$fri_start"
+	json_add_string fri_sat_bedtime_end "$fri_end"
+	json_add_int activity_threshold_bytes "${threshold:-0}"
+	json_add_array devices
+	config_list_foreach "$section" device snapshot_device
+	json_close_array
+	json_close_object
+}
+
+rpc_edit_snapshot() {
+	config_load owrtpc
+	json_init
+	json_add_string revision "$(config_revision)"
+	json_add_array profiles
+	config_foreach snapshot_profile profile
+	json_close_array
+	json_dump
+}
+
+rpc_profile_apply_error() {
+	json_init
+	json_add_boolean success 0
+	json_add_string code "$1"
+	json_add_string error "$2"
+	json_dump
+}
+
+PROFILE_APPLY_SECTION=''
+PROFILE_APPLY_DEVICES=''
+PROFILE_APPLY_CONFLICT=''
+
+check_assigned_device() {
+	device=$(normalize_mac "$1")
+	grep -Fqx -- "$device" "$PROFILE_APPLY_DEVICES" 2>/dev/null &&
+		PROFILE_APPLY_CONFLICT="$device"
+}
+
+check_other_profile() {
+	[ "$1" = "$PROFILE_APPLY_SECTION" ] ||
+		config_list_foreach "$1" device check_assigned_device
+}
+
+restore_profile_config() {
+	cp "$1" /etc/config/owrtpc
+	"$OWRTPCCTL" apply >/dev/null 2>&1 || true
+}
+
+set_bedtime_options() {
+	section="$1"
+	period="$2"
+	start="$3"
+	end="$4"
+	if [ -n "$start" ]; then
+		uci set "owrtpc.$section.${period}_bedtime_start=$start"
+		uci set "owrtpc.$section.${period}_bedtime_end=$end"
+	else
+		uci -q delete "owrtpc.$section.${period}_bedtime_start" || true
+		uci -q delete "owrtpc.$section.${period}_bedtime_end" || true
+	fi
+}
+
+rpc_profile_apply() (
+	json_load "$1" || { rpc_profile_apply_error invalid_request 'Invalid JSON request'; return; }
+	json_get_var expected_revision expected_revision
+	json_get_var section section
+	json_get_var name name
+	json_get_var enabled enabled
+	json_get_var mon_thu mon_thu_daily_minutes
+	json_get_var fri_sun fri_sun_daily_minutes
+	json_get_var sun_start sun_thu_bedtime_start
+	json_get_var sun_end sun_thu_bedtime_end
+	json_get_var fri_start fri_sat_bedtime_start
+	json_get_var fri_end fri_sat_bedtime_end
+	json_get_var threshold activity_threshold_bytes
+	json_get_type devices_type devices
+
+	case "$expected_revision" in
+		*[!0-9a-f]*|'') rpc_profile_apply_error invalid_request 'Invalid configuration revision'; return ;;
+	esac
+	[ "${#expected_revision}" -eq 64 ] || {
+		rpc_profile_apply_error invalid_request 'Invalid configuration revision'; return
+	}
+	safe_profile "$section" || { rpc_profile_apply_error not_found 'Unknown profile'; return; }
+	[ -n "$name" ] && [ "${#name}" -le 80 ] || {
+		rpc_profile_apply_error validation_failed 'Profile name is required and must not exceed 80 characters'; return
+	}
+	case "$enabled" in 1|true) enabled=1 ;; 0|false) enabled=0 ;;
+		*) rpc_profile_apply_error validation_failed 'enabled must be a boolean'; return ;;
+	esac
+	case "$mon_thu" in ''|*[!0-9]*) rpc_profile_apply_error validation_failed 'Invalid Monday-Thursday allowance'; return ;; esac
+	case "$fri_sun" in ''|*[!0-9]*) rpc_profile_apply_error validation_failed 'Invalid Friday-Sunday allowance'; return ;; esac
+	valid_bedtime_pair "$sun_start" "$sun_end" || {
+		rpc_profile_apply_error validation_failed 'Incomplete or invalid Sunday-Thursday bedtime'; return
+	}
+	valid_bedtime_pair "$fri_start" "$fri_end" || {
+		rpc_profile_apply_error validation_failed 'Incomplete or invalid Friday-Saturday bedtime'; return
+	}
+	case "$threshold" in ''|*[!0-9]*) rpc_profile_apply_error validation_failed 'Invalid activity threshold'; return ;; esac
+	[ "$threshold" -eq 0 ] || [ "$threshold" -gt 0 ] || {
+		rpc_profile_apply_error validation_failed 'Invalid activity threshold'; return
+	}
+	[ "$devices_type" = array ] || {
+		rpc_profile_apply_error validation_failed 'devices must be an array'; return
+	}
+
+	devices_file=$(mktemp /tmp/owrtpc-rpc-devices.XXXXXX) || return 1
+	backup_file=$(mktemp /tmp/owrtpc-rpc-config.XXXXXX) || { rm -f "$devices_file"; return 1; }
+	trap 'rm -f "$devices_file" "$backup_file"' EXIT
+	json_select devices
+	json_get_keys device_keys
+	for key in $device_keys; do
+		json_get_var device "$key"
+		device=$(normalize_mac "$device")
+		valid_mac "$device" || {
+			rpc_profile_apply_error validation_failed 'Invalid device MAC address'; return
+		}
+		grep -Fqx -- "$device" "$devices_file" 2>/dev/null && {
+			rpc_profile_apply_error validation_failed 'A device is listed more than once'; return
+		}
+		printf '%s\n' "$device" >> "$devices_file"
+	done
+	json_select ..
+
+	current_revision=$(config_revision)
+	[ "$current_revision" = "$expected_revision" ] || {
+		rpc_profile_apply_error conflicting_edit 'The OWRTPC configuration changed after this draft was opened'; return
+	}
+	PROFILE_APPLY_SECTION="$section"
+	PROFILE_APPLY_DEVICES="$devices_file"
+	PROFILE_APPLY_CONFLICT=''
+	config_load owrtpc
+	config_foreach check_other_profile profile
+	[ -z "$PROFILE_APPLY_CONFLICT" ] || {
+		rpc_profile_apply_error validation_failed "Device $PROFILE_APPLY_CONFLICT is assigned to another profile"; return
+	}
+
+	cp /etc/config/owrtpc "$backup_file" || return 1
+	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
+	uci set "owrtpc.$section.name=$name"
+	uci set "owrtpc.$section.enabled=$enabled"
+	uci set "owrtpc.$section.mon_thu_daily_minutes=$mon_thu"
+	uci set "owrtpc.$section.fri_sun_daily_minutes=$fri_sun"
+	uci -q delete "owrtpc.$section.device" || true
+	while IFS= read -r device; do
+		uci add_list "owrtpc.$section.device=$device"
+	done < "$devices_file"
+	for option in daily_minutes weekday_daily_minutes weekend_daily_minutes \
+		bedtime_start bedtime_end weekday_bedtime_start weekday_bedtime_end \
+		weekend_bedtime_start weekend_bedtime_end; do
+		uci -q delete "owrtpc.$section.$option" || true
+	done
+	set_bedtime_options "$section" sun_thu "$sun_start" "$sun_end"
+	set_bedtime_options "$section" fri_sat "$fri_start" "$fri_end"
+	if [ "$threshold" -eq 0 ]; then
+		uci -q delete "owrtpc.$section.activity_threshold_bytes" || true
+	else
+		uci set "owrtpc.$section.activity_threshold_bytes=$threshold"
+	fi
+	uci commit owrtpc
+
+	if ! "$OWRTPCCTL" validate >/dev/null 2>&1; then
+		restore_profile_config "$backup_file"
+		rpc_profile_apply_error validation_failed 'The router rejected the complete profile configuration'
+		return
+	fi
+	if ! "$OWRTPCCTL" apply; then
+		restore_profile_config "$backup_file"
+		rpc_profile_apply_error apply_failed 'Policy refresh failed and the previous configuration was restored'
+		return
+	fi
+	json_init
+	json_add_boolean success 1
+	json_add_string revision "$(config_revision)"
+	json_dump
+)
+
 rpc_capabilities() {
 	package_owner=$(apk info --who-owns "$OWRTPCCTL" 2>/dev/null |
 		sed -n 's/^.* is owned by //p' | head -n 1)
@@ -120,7 +354,7 @@ rpc_capabilities() {
 	json_init
 	json_add_string api 'owrtpc-mobile'
 	json_add_int major 1
-	json_add_int minor 2
+	json_add_int minor 3
 	json_add_string backend_version "$backend_version"
 	json_add_array features
 	json_add_string '' 'profiles.read'
@@ -130,6 +364,7 @@ rpc_capabilities() {
 	json_add_string '' 'uci-apply-confirm'
 	json_add_string '' 'schedule-periods'
 	json_add_string '' 'device-usage'
+	json_add_string '' 'profile-edit-transaction'
 	json_close_array
 	json_add_string router_date "$(date +%F)"
 	json_add_string router_timezone "$router_timezone"
@@ -238,6 +473,21 @@ case "$1" in
 		json_init
 		json_add_object capabilities; json_close_object
 		json_add_object status; json_close_object
+		json_add_object edit_snapshot; json_close_object
+		json_add_object profile_apply
+		json_add_string expected_revision String
+		json_add_string section String
+		json_add_string name String
+		json_add_string enabled Boolean
+		json_add_string mon_thu_daily_minutes Int32
+		json_add_string fri_sun_daily_minutes Int32
+		json_add_string sun_thu_bedtime_start String
+		json_add_string sun_thu_bedtime_end String
+		json_add_string fri_sat_bedtime_start String
+		json_add_string fri_sat_bedtime_end String
+		json_add_string activity_threshold_bytes Int32
+		json_add_array devices; json_close_array
+		json_close_object
 		json_add_object set_enabled
 		json_add_string profile String
 		json_add_string enabled Boolean
@@ -262,6 +512,8 @@ case "$1" in
 		case "$2" in
 			capabilities) rpc_capabilities ;;
 			status) rpc_status ;;
+			edit_snapshot) rpc_write rpc_edit_snapshot ;;
+			profile_apply) rpc_write rpc_profile_apply "$request" ;;
 			set_enabled) rpc_write rpc_set_enabled "$request" ;;
 			set_block) rpc_write rpc_set_block "$request" ;;
 			add_time) rpc_write rpc_add_time "$request" ;;

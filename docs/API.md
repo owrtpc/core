@@ -10,7 +10,7 @@ filter is provided by this API.
 
 | API | Operations | Provider |
 | --- | --- | --- |
-| `owrtpc` | `capabilities`, `status`, `validate`, `refresh`, `set_enabled`, `set_block`, `add_time`, `reset` | `owrtpc` executable rpcd plugin |
+| `owrtpc` | `capabilities`, `status`, `edit_snapshot`, `profile_apply`, `validate`, `refresh`, `set_enabled`, `set_block`, `add_time`, `reset` | `owrtpc` executable rpcd plugin |
 | `uci` | profile/config reads and staged edits, apply/confirm | `rpcd` |
 | `session` | login, access checks, logout | `rpcd` |
 | `luci-rpc` | `getHostHints`, `getDHCPLeases` | `rpcd-mod-luci` |
@@ -57,8 +57,8 @@ response is:
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 2,
-  "backend_version": "0.1.0-r3",
+  "minor": 3,
+  "backend_version": "0.1.0-r4",
   "features": [
     "profiles.read",
     "profiles.write",
@@ -66,7 +66,8 @@ response is:
     "device-discovery",
     "uci-apply-confirm",
     "schedule-periods",
-    "device-usage"
+    "device-usage",
+    "profile-edit-transaction"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -95,6 +96,22 @@ configured device is represented by its normalized `mac` and diagnostic
 `used_seconds` counter. This counter explains per-device activity; the profile
 counter remains authoritative for shared allowance enforcement and must not be
 reconstructed by summing device counters.
+
+Contract 1.3 adds the optional `profile-edit-transaction` feature. The
+read-only `owrtpc.edit_snapshot` method returns one configuration revision and
+the complete normalized profile configuration read while holding the OWRTPC
+action lock. `owrtpc.profile_apply` updates one existing profile only when its
+`expected_revision` still matches. A stale draft returns
+`{"success":false,"code":"conflicting_edit",...}` without changing UCI.
+
+The update request contains `section`, `name`, `enabled`, both allowance
+values, all four bedtime values, `activity_threshold_bytes` (`0` selects the
+router default), and the complete `devices` array. The backend canonicalizes
+MAC addresses, rejects duplicates across profiles, commits only `owrtpc`,
+validates the complete result and refreshes policy. If validation or policy
+application fails, it restores the prior `/etc/config/owrtpc` and does not
+report success. Official clients use this operation instead of generic UCI
+staging for profile updates.
 
 Quick actions commit immediately. Profile editing uses rpcd/UCI staging and
 apply/confirm; do not treat a successful `uci.set` as a committed change.

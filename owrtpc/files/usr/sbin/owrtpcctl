@@ -29,7 +29,7 @@ safe_id() {
 }
 
 normalize_mac() {
-	printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
+	printf '%s' "$1" | tr 'abcdef' 'ABCDEF'
 }
 
 valid_mac() {
