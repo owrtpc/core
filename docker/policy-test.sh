@@ -3,6 +3,7 @@
 set -eu
 	cleanup_profile() {
 		uci -q delete owrtpc.docker_test || true
+		[ -z "${created_profile:-}" ] || uci -q delete "owrtpc.$created_profile" || true
 		uci commit owrtpc
 		ubus -s /var/run/ubus/ubus.sock call owrtpc refresh >/dev/null 2>&1 || true
 		rm -f /tmp/owrtpc/profile-docker_test.used /tmp/owrtpc/profile-docker_test.bonus /tmp/owrtpc/profile-docker_test.all_day
@@ -37,6 +38,20 @@ set -eu
 	conflict=$(ubus -s /var/run/ubus/ubus.sock call owrtpc profile_apply "{\"expected_revision\":\"$revision\",\"section\":\"docker_test\",\"name\":\"Stale edit\",\"enabled\":true,\"mon_thu_daily_minutes\":30,\"fri_sun_daily_minutes\":30,\"sun_thu_bedtime_start\":\"\",\"sun_thu_bedtime_end\":\"\",\"fri_sat_bedtime_start\":\"\",\"fri_sat_bedtime_end\":\"\",\"activity_threshold_bytes\":0,\"devices\":[]}")
 	printf '%s\n' "$conflict" | grep -q '"code": "conflicting_edit"'
 	[ "$(uci -q get owrtpc.docker_test.name)" = 'Edited Docker Test' ]
+	current_snapshot=$(ubus -s /var/run/ubus/ubus.sock call owrtpc edit_snapshot)
+	current_revision=$(printf '%s\n' "$current_snapshot" | jsonfilter -e '@.revision')
+	assigned=$(ubus -s /var/run/ubus/ubus.sock call owrtpc profile_create "{\"expected_revision\":\"$current_revision\",\"name\":\"Conflicting profile\",\"enabled\":true,\"mon_thu_daily_minutes\":30,\"fri_sun_daily_minutes\":30,\"sun_thu_bedtime_start\":\"\",\"sun_thu_bedtime_end\":\"\",\"fri_sat_bedtime_start\":\"\",\"fri_sat_bedtime_end\":\"\",\"activity_threshold_bytes\":0,\"devices\":[\"02:42:AC:11:00:02\"]}")
+	printf '%s\n' "$assigned" | grep -q '"code": "validation_failed"'
+	created=$(ubus -s /var/run/ubus/ubus.sock call owrtpc profile_create "{\"expected_revision\":\"$current_revision\",\"name\":\"Created Docker Test\",\"enabled\":true,\"mon_thu_daily_minutes\":45,\"fri_sun_daily_minutes\":90,\"sun_thu_bedtime_start\":\"20:30\",\"sun_thu_bedtime_end\":\"07:30\",\"fri_sat_bedtime_start\":\"\",\"fri_sat_bedtime_end\":\"\",\"activity_threshold_bytes\":0,\"devices\":[\"02:42:AC:11:00:03\"]}")
+	printf '%s\n' "$created" | grep -q '"success": true'
+	created_profile=$(printf '%s\n' "$created" | jsonfilter -e '@.section')
+	[ "$(uci -q get "owrtpc.$created_profile")" = profile ]
+	[ "$(uci -q get "owrtpc.$created_profile.name")" = 'Created Docker Test' ]
+	[ "$(uci -q get "owrtpc.$created_profile.device")" = '02:42:AC:11:00:03' ]
+	created_status=$(ubus -s /var/run/ubus/ubus.sock call owrtpc status)
+	printf '%s\n' "$created_status" | grep -q '"name": "Created Docker Test"'
+	stale_create=$(ubus -s /var/run/ubus/ubus.sock call owrtpc profile_create "{\"expected_revision\":\"$current_revision\",\"name\":\"Stale create\",\"enabled\":true,\"mon_thu_daily_minutes\":0,\"fri_sun_daily_minutes\":0,\"sun_thu_bedtime_start\":\"\",\"sun_thu_bedtime_end\":\"\",\"fri_sat_bedtime_start\":\"\",\"fri_sat_bedtime_end\":\"\",\"activity_threshold_bytes\":0,\"devices\":[]}")
+	printf '%s\n' "$stale_create" | grep -q '"code": "conflicting_edit"'
 	diagnostics=$(/usr/sbin/owrtpcctl diagnostics)
 	printf "%s\n" "$diagnostics" | grep -q "used_seconds.*activity_state.*last_bytes"
 	printf "%s\n" "$diagnostics" | grep -q "docker_test.*02:42:AC:11:00:02"

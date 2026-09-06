@@ -226,8 +226,10 @@ set_bedtime_options() {
 	fi
 }
 
-rpc_profile_apply() (
-	json_load "$1" || { rpc_profile_apply_error invalid_request 'Invalid JSON request'; return; }
+rpc_profile_write() (
+	mode="$1"
+	request="$2"
+	json_load "$request" || { rpc_profile_apply_error invalid_request 'Invalid JSON request'; return; }
 	json_get_var expected_revision expected_revision
 	json_get_var section section
 	json_get_var name name
@@ -247,7 +249,11 @@ rpc_profile_apply() (
 	[ "${#expected_revision}" -eq 64 ] || {
 		rpc_profile_apply_error invalid_request 'Invalid configuration revision'; return
 	}
-	safe_profile "$section" || { rpc_profile_apply_error not_found 'Unknown profile'; return; }
+	case "$mode" in
+		update) safe_profile "$section" || { rpc_profile_apply_error not_found 'Unknown profile'; return; } ;;
+		create) section='' ;;
+		*) rpc_profile_apply_error invalid_request 'Invalid profile operation'; return ;;
+	esac
 	[ -n "$name" ] && [ "${#name}" -le 80 ] || {
 		rpc_profile_apply_error validation_failed 'Profile name is required and must not exceed 80 characters'; return
 	}
@@ -303,6 +309,13 @@ rpc_profile_apply() (
 
 	cp /etc/config/owrtpc "$backup_file" || return 1
 	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
+	if [ "$mode" = create ]; then
+		section=$(uci add owrtpc profile) || {
+			rpc_profile_apply_error apply_failed 'Unable to create the profile'
+			return
+		}
+		uci set "owrtpc.$section.blocked=0"
+	fi
 	uci set "owrtpc.$section.name=$name"
 	uci set "owrtpc.$section.enabled=$enabled"
 	uci set "owrtpc.$section.mon_thu_daily_minutes=$mon_thu"
@@ -337,9 +350,18 @@ rpc_profile_apply() (
 	fi
 	json_init
 	json_add_boolean success 1
+	json_add_string section "$section"
 	json_add_string revision "$(config_revision)"
 	json_dump
 )
+
+rpc_profile_apply() {
+	rpc_profile_write update "$1"
+}
+
+rpc_profile_create() {
+	rpc_profile_write create "$1"
+}
 
 rpc_capabilities() {
 	package_owner=$(apk info --who-owns "$OWRTPCCTL" 2>/dev/null |
@@ -354,7 +376,7 @@ rpc_capabilities() {
 	json_init
 	json_add_string api 'owrtpc-mobile'
 	json_add_int major 1
-	json_add_int minor 3
+	json_add_int minor 4
 	json_add_string backend_version "$backend_version"
 	json_add_array features
 	json_add_string '' 'profiles.read'
@@ -365,6 +387,7 @@ rpc_capabilities() {
 	json_add_string '' 'schedule-periods'
 	json_add_string '' 'device-usage'
 	json_add_string '' 'profile-edit-transaction'
+	json_add_string '' 'profile-create-transaction'
 	json_close_array
 	json_add_string router_date "$(date +%F)"
 	json_add_string router_timezone "$router_timezone"
@@ -488,6 +511,19 @@ case "$1" in
 		json_add_string activity_threshold_bytes Int32
 		json_add_array devices; json_close_array
 		json_close_object
+		json_add_object profile_create
+		json_add_string expected_revision String
+		json_add_string name String
+		json_add_string enabled Boolean
+		json_add_string mon_thu_daily_minutes Int32
+		json_add_string fri_sun_daily_minutes Int32
+		json_add_string sun_thu_bedtime_start String
+		json_add_string sun_thu_bedtime_end String
+		json_add_string fri_sat_bedtime_start String
+		json_add_string fri_sat_bedtime_end String
+		json_add_string activity_threshold_bytes Int32
+		json_add_array devices; json_close_array
+		json_close_object
 		json_add_object set_enabled
 		json_add_string profile String
 		json_add_string enabled Boolean
@@ -514,6 +550,7 @@ case "$1" in
 			status) rpc_status ;;
 			edit_snapshot) rpc_write rpc_edit_snapshot ;;
 			profile_apply) rpc_write rpc_profile_apply "$request" ;;
+			profile_create) rpc_write rpc_profile_create "$request" ;;
 			set_enabled) rpc_write rpc_set_enabled "$request" ;;
 			set_block) rpc_write rpc_set_block "$request" ;;
 			add_time) rpc_write rpc_add_time "$request" ;;

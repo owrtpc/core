@@ -136,7 +136,7 @@ printf '%s\n' "$status" | grep -q '"used_seconds": 456'
 capabilities=$(ubus call owrtpc capabilities)
 printf '%s\n' "$capabilities" | jsonfilter -e '@.api' | grep -qx owrtpc-mobile
 printf '%s\n' "$capabilities" | jsonfilter -e '@.major' | grep -qx 1
-printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 3
+printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 4
 [ "$(printf '%s\n' "$capabilities" | jsonfilter -e '@.backend_version')" = "$version-r$release" ]
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.read
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.write
@@ -146,6 +146,7 @@ printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx uci-app
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx schedule-periods
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx device-usage
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profile-edit-transaction
+printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profile-create-transaction
 printf '%s\n' "$capabilities" | jsonfilter -e '@.router_date' | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
 printf '%s\n' "$capabilities" | jsonfilter -e '@.router_timezone' | grep -q .
 ubus call luci-rpc getDHCPLeases | grep -q dhcp_leases
@@ -176,6 +177,7 @@ check_access ubus owrtpc status
 check_access ubus owrtpc capabilities
 check_access ubus owrtpc edit_snapshot
 check_access ubus owrtpc profile_apply
+check_access ubus owrtpc profile_create
 check_access ubus owrtpc set_block
 check_access ubus owrtpc reset
 check_access ubus luci-rpc getHostHints

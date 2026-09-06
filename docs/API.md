@@ -10,7 +10,7 @@ filter is provided by this API.
 
 | API | Operations | Provider |
 | --- | --- | --- |
-| `owrtpc` | `capabilities`, `status`, `edit_snapshot`, `profile_apply`, `validate`, `refresh`, `set_enabled`, `set_block`, `add_time`, `reset` | `owrtpc` executable rpcd plugin |
+| `owrtpc` | `capabilities`, `status`, `edit_snapshot`, `profile_apply`, `profile_create`, `validate`, `refresh`, `set_enabled`, `set_block`, `add_time`, `reset` | `owrtpc` executable rpcd plugin |
 | `uci` | profile/config reads and staged edits, apply/confirm | `rpcd` |
 | `session` | login, access checks, logout | `rpcd` |
 | `luci-rpc` | `getHostHints`, `getDHCPLeases` | `rpcd-mod-luci` |
@@ -57,8 +57,8 @@ response is:
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 3,
-  "backend_version": "0.1.0-r4",
+  "minor": 4,
+  "backend_version": "0.1.0-r5",
   "features": [
     "profiles.read",
     "profiles.write",
@@ -67,7 +67,8 @@ response is:
     "uci-apply-confirm",
     "schedule-periods",
     "device-usage",
-    "profile-edit-transaction"
+    "profile-edit-transaction",
+    "profile-create-transaction"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -113,8 +114,19 @@ application fails, it restores the prior `/etc/config/owrtpc` and does not
 report success. Official clients use this operation instead of generic UCI
 staging for profile updates.
 
-Quick actions commit immediately. Profile editing uses rpcd/UCI staging and
-apply/confirm; do not treat a successful `uci.set` as a committed change.
+Contract 1.4 adds the optional `profile-create-transaction` feature and the
+`owrtpc.profile_create` method. Its request is the same complete profile draft
+as `profile_apply`, without `section`, and includes the snapshot's
+`expected_revision`. The backend allocates the anonymous UCI section, checks
+that every selected device is still unassigned, validates and applies the
+complete configuration, and restores the previous file and policy on failure.
+Success returns both the new `section` and configuration `revision`. Clients
+must use that returned section for post-write verification and must not retry
+an ambiguous create automatically.
+
+Quick actions commit immediately. Official mobile profile creation and editing
+use the backend transactions described above; generic rpcd/UCI staging remains
+available to LuCI and must not treat a successful `uci.set` as committed.
 `owrtpc.refresh` applies the committed configuration. `add_time` accepts 60,
 240 and the existing `all-day` value. A numeric value sets that amount of
 usable time from the action's current usage, replacing any prior temporary

@@ -6,6 +6,16 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-r5] - 2026-09-06
+
+### Added
+
+- Mobile API contract 1.4 adds transactional profile creation with the same
+  revision check, device-assignment validation and rollback guarantees as
+  existing profile edits.
+- Successful profile writes return the affected UCI section so clients can
+  verify and open newly created profiles without guessing router identifiers.
+
 ## [0.1.0-r4] - 2026-09-06
 
 ### Added

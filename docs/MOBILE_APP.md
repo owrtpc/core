@@ -326,7 +326,7 @@ From r24 the backend exposes the authenticated, read-only
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 3,
+  "minor": 4,
   "backend_version": "0.1.0-rNN",
   "features": [
     "profiles.read",
@@ -336,7 +336,8 @@ From r24 the backend exposes the authenticated, read-only
     "uci-apply-confirm",
     "schedule-periods",
     "device-usage",
-    "profile-edit-transaction"
+    "profile-edit-transaction",
+    "profile-create-transaction"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -390,6 +391,12 @@ configuration and restores the previous configuration if policy application
 fails. This replaces the previously planned generic UCI write path: rpcd delta
 files contain new values but not the values they replace, so a separate
 preflight read cannot make a later `uci.apply` compare-and-set atomic.
+
+Backends advertising `profile-create-transaction` accept the same complete
+draft through `owrtpc.profile_create`, without a client-selected section. The
+backend allocates the anonymous UCI section and returns it on success. Creation
+uses the edit snapshot revision, enforces one profile per device and shares the
+same validation, policy refresh and restore-on-failure boundary as editing.
 
 Legacy backends exposing only UCI apply/confirm remain read-only in the mobile
 editor. The generic flow below is retained as background for compatibility
