@@ -620,7 +620,7 @@ testing or TestFlight/App Store acceptance.
 | Shared mobile (iOS and Android) | HTTPS pairing, remembered credentials, session renewal, profiles, details, quick actions, edit/create/delete/order, English/Italian, theme and version display | Physical M3 acceptance; diagnostics/support settings and release audit |
 | Deletion (implemented) | Revision-bound API and mobile confirmation; post-delete verification; iOS/Android widget coverage and OpenWrt Docker lifecycle coverage | Signed rollout and physical-device acceptance |
 | iOS | Xcode target and previous signed iPhone installations | Verify each new signed build on iPhone; lifecycle/permissions/VoiceOver; TestFlight and App Store delivery |
-| Android | Native target and shared Flutter implementation/tests | Pinned Android build toolchain, signed artifacts, physical-device permissions/Keystore/TalkBack and closed Play testing |
+| Android | Native target, shared Flutter tests and pinned build/signing tooling with a native Linux CI job | Release artifact validation, production signing identity, physical-device permissions/Keystore/TalkBack and closed Play testing |
 
 Tests run through the pinned Docker Flutter environment. iOS signing/builds
 require a macOS/Xcode environment; no additional host SDK is needed for this

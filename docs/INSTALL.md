@@ -52,6 +52,8 @@ apk add /tmp/luci-app-owrtpc-0.1.0-r1.apk
 For a backend-only installation, stop after the first command. Local CLI and
 ubus APIs are available; installation does not expose a new HTTP endpoint or
 configure remote access. See [API.md](API.md) for the transport boundary.
+For the companion app, follow [HTTPS pairing and restricted account setup](MOBILE_SETUP.md),
+including flow-offloading requirements and the core/mobile compatibility table.
 
 ### Manual upload from LuCI
 

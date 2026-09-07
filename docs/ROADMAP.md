@@ -14,6 +14,11 @@ passing CI run or a local signed installation does not close device/store gates.
 - M0–M2 foundations are implemented; cross-platform acceptance remains open.
 - M3 functionality, including ordering, is implemented. Physical acceptance is
   still open. M4 covers public delivery.
+- Core/LuCI 0.4.0-r3 signed packages have passed all four Docker lifecycle modes
+  and are uploaded to a draft release. Physical acceptance and publication remain
+  open in core issue 3.
+- Mobile 0.4.1+18 adds Android build/signing tooling and native Linux CI validation;
+  production signing identity and device/store acceptance remain open.
 
 ## Tracked work
 
@@ -51,6 +56,10 @@ External dependencies include production signing ownership, store accounts,
 physical Android/iOS devices, a supported router and beta participants. Never
 record a store submission, signing setup or device test as complete solely
 because shared Flutter checks passed.
+
+[Mobile setup](MOBILE_SETUP.md) covers HTTPS, certificate fingerprint comparison,
+restricted accounts, flow offloading and feature-based compatibility. Release
+publication must also supply the final download links and device acceptance record.
 
 V1 remains one local router, English/Italian and no cloud. Notifications,
 multi-router support and history remain deferred. An OpenWrt feed is not
