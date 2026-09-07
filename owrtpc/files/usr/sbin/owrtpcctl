@@ -921,6 +921,18 @@ add_time() {
 	apply_policy
 }
 
+forget_profile() {
+	profile="$1"
+	safe_id "$profile" || return 1
+	# Refuse active sections, including non-profile configuration sections.
+	if uci -q get "owrtpc.$profile" >/dev/null; then return 1; fi
+	for directory in "$STATE_DIR" "$PERSIST_DIR"; do
+		for suffix in used bonus all_day; do
+			rm -f "$directory/profile-$profile.$suffix" || return 1
+		done
+	done
+}
+
 initialize() {
 	restore_state
 	ensure_state
@@ -952,9 +964,10 @@ case "${1:-}" in
 	status) status_all ;;
 	diagnostics) diagnostics_all ;;
 	add-time) add_time "${2:-}" "${3:-}" ;;
+	forget-profile) forget_profile "${2:-}" ;;
 	validate) ensure_state; validate_config ;;
 	*)
-		echo "Usage: owrtpcctl {init|sample|apply|status|diagnostics|validate|checkpoint|add-time PROFILE SECONDS|reset --confirm}" >&2
+		echo "Usage: owrtpcctl {init|sample|apply|status|diagnostics|validate|checkpoint|add-time PROFILE SECONDS|forget-profile SECTION|reset --confirm}" >&2
 		exit 2
 		;;
 esac

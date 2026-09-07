@@ -37,12 +37,14 @@ assert.ok(acl.owrtpc.read.ubus.owrtpc.includes('edit_snapshot'));
 assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('reset'));
 assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('profile_apply'));
 assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('profile_create'));
+assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('profile_delete'));
+assert.ok(!acl.owrtpc.read.ubus.owrtpc.includes('profile_delete'));
 assert.ok(!acl.owrtpc.read.ubus.owrtpc.includes('reset'));
 const rpcPlugin = read('owrtpc/files/usr/libexec/rpcd/owrtpc');
 for (const value of [
 	"json_add_string api 'owrtpc-mobile'",
 	'json_add_int major 1',
-	'json_add_int minor 4',
+	'json_add_int minor 5',
 	"json_add_string '' 'profiles.read'",
 	"json_add_string '' 'profiles.write'",
 	"json_add_string '' 'quick-actions'",
@@ -51,7 +53,8 @@ for (const value of [
 	"json_add_string '' 'schedule-periods'",
 	"json_add_string '' 'device-usage'",
 	"json_add_string '' 'profile-edit-transaction'",
-	"json_add_string '' 'profile-create-transaction'"
+	"json_add_string '' 'profile-create-transaction'",
+	"json_add_string '' 'profile-delete-transaction'"
 ]) assert.ok(rpcPlugin.includes(value), value);
 assert.match(rpcPlugin, /json_add_array devices/);
 assert.match(rpcPlugin, /"\$OWRTPCCTL" diagnostics/);

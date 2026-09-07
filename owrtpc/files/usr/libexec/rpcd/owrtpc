@@ -363,6 +363,47 @@ rpc_profile_create() {
 	rpc_profile_write create "$1"
 }
 
+rpc_profile_delete() (
+	json_load "$1" || { rpc_profile_apply_error invalid_request 'Invalid JSON request'; return; }
+	json_get_var expected_revision expected_revision
+	json_get_var section section
+	case "$expected_revision" in
+		*[!0-9a-f]*|'') rpc_profile_apply_error invalid_request 'Invalid configuration revision'; return ;;
+	esac
+	[ "${#expected_revision}" -eq 64 ] || {
+		rpc_profile_apply_error invalid_request 'Invalid configuration revision'; return
+	}
+	# Never commit changes staged by another local client.
+	[ -z "$(uci -q changes owrtpc)" ] && [ "$(config_revision)" = "$expected_revision" ] || {
+		rpc_profile_apply_error conflicting_edit 'The OWRTPC configuration changed before deletion'; return
+	}
+	safe_profile "$section" || { rpc_profile_apply_error not_found 'Unknown profile'; return; }
+	transaction_dir=$(mktemp -d /tmp/owrtpc-rpc-delete.XXXXXX) || return 1
+	trap 'rm -rf "$transaction_dir"' EXIT
+	cp /etc/config/owrtpc "$transaction_dir/config" || return 1
+	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
+	if uci -t "$transaction_dir" delete "owrtpc.$section" &&
+		uci -t "$transaction_dir" commit owrtpc &&
+		"$OWRTPCCTL" validate >/dev/null 2>&1 &&
+		"$OWRTPCCTL" apply >/dev/null 2>&1; then
+		# Forget only this removed profile's counters, under the engine lock.
+		# Device diagnostics and all other profiles retain their usage.
+		"$OWRTPCCTL" forget-profile "$section" || {
+			rpc_profile_apply_error outcome_unknown 'Profile removed but state cleanup could not be confirmed'; return
+		}
+		json_init
+		json_add_boolean success 1
+		json_add_string section "$section"
+		json_add_string revision "$(config_revision)"
+		json_dump
+	elif cp "$transaction_dir/config" /etc/config/owrtpc &&
+		"$OWRTPCCTL" apply >/dev/null 2>&1; then
+		rpc_profile_apply_error apply_failed 'Deletion failed and the previous configuration and policy were restored'
+	else
+		rpc_profile_apply_error outcome_unknown 'Deletion failed and restoration could not be confirmed'
+	fi
+)
+
 rpc_capabilities() {
 	package_owner=$(apk info --who-owns "$OWRTPCCTL" 2>/dev/null |
 		sed -n 's/^.* is owned by //p' | head -n 1)
@@ -376,7 +417,7 @@ rpc_capabilities() {
 	json_init
 	json_add_string api 'owrtpc-mobile'
 	json_add_int major 1
-	json_add_int minor 4
+	json_add_int minor 5
 	json_add_string backend_version "$backend_version"
 	json_add_array features
 	json_add_string '' 'profiles.read'
@@ -388,6 +429,7 @@ rpc_capabilities() {
 	json_add_string '' 'device-usage'
 	json_add_string '' 'profile-edit-transaction'
 	json_add_string '' 'profile-create-transaction'
+	json_add_string '' 'profile-delete-transaction'
 	json_close_array
 	json_add_string router_date "$(date +%F)"
 	json_add_string router_timezone "$router_timezone"
@@ -524,6 +566,10 @@ case "$1" in
 		json_add_string activity_threshold_bytes Int32
 		json_add_array devices; json_close_array
 		json_close_object
+		json_add_object profile_delete
+		json_add_string expected_revision String
+		json_add_string section String
+		json_close_object
 		json_add_object set_enabled
 		json_add_string profile String
 		json_add_string enabled Boolean
@@ -551,6 +597,7 @@ case "$1" in
 			edit_snapshot) rpc_write rpc_edit_snapshot ;;
 			profile_apply) rpc_write rpc_profile_apply "$request" ;;
 			profile_create) rpc_write rpc_profile_create "$request" ;;
+			profile_delete) rpc_write rpc_profile_delete "$request" ;;
 			set_enabled) rpc_write rpc_set_enabled "$request" ;;
 			set_block) rpc_write rpc_set_block "$request" ;;
 			add_time) rpc_write rpc_add_time "$request" ;;

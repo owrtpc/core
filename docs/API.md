@@ -10,7 +10,7 @@ filter is provided by this API.
 
 | API | Operations | Provider |
 | --- | --- | --- |
-| `owrtpc` | `capabilities`, `status`, `edit_snapshot`, `profile_apply`, `profile_create`, `validate`, `refresh`, `set_enabled`, `set_block`, `add_time`, `reset` | `owrtpc` executable rpcd plugin |
+| `owrtpc` | `capabilities`, `status`, `edit_snapshot`, `profile_apply`, `profile_create`, `profile_delete`, `validate`, `refresh`, `set_enabled`, `set_block`, `add_time`, `reset` | `owrtpc` executable rpcd plugin |
 | `uci` | profile/config reads and staged edits, apply/confirm | `rpcd` |
 | `session` | login, access checks, logout | `rpcd` |
 | `luci-rpc` | `getHostHints`, `getDHCPLeases` | `rpcd-mod-luci` |
@@ -57,8 +57,8 @@ response is:
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 4,
-  "backend_version": "0.2.0-r1",
+  "minor": 5,
+  "backend_version": "0.3.0-r2",
   "features": [
     "profiles.read",
     "profiles.write",
@@ -68,7 +68,8 @@ response is:
     "schedule-periods",
     "device-usage",
     "profile-edit-transaction",
-    "profile-create-transaction"
+    "profile-create-transaction",
+    "profile-delete-transaction"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -124,7 +125,26 @@ Success returns both the new `section` and configuration `revision`. Clients
 must use that returned section for post-write verification and must not retry
 an ambiguous create automatically.
 
-Quick actions commit immediately. Official mobile profile creation and editing
+Contract 1.5 adds `profile-delete-transaction`. `owrtpc.profile_delete` accepts
+only `section` and the `expected_revision` retained from `edit_snapshot`. Clients
+must ask for confirmation using that snapshot before submitting. The write ACL
+is required. Missing/non-profile sections are rejected, as are stale revisions
+and pending default UCI changes. Deletion shares the OWRTPC action lock and uses
+an isolated UCI staging directory, validates the result and refreshes policy.
+
+Success returns `success`, `section` and the new `revision`. The removed
+profile's usage and temporary credits are cleared in memory and persisted state
+under the engine lock; per-device diagnostics and other profiles are preserved.
+Devices become unassigned and this profile no longer enforces restrictions on
+them. If deletion fails, `apply_failed` means that both previous configuration
+and policy were restored; `outcome_unknown` means restoration or final state
+cleanup could not be confirmed. Clients verify absence in both the new snapshot
+and live status, including an empty list after deleting the last profile. They
+must never automatically retry a deletion, including after session expiry.
+The action lock serializes OWRTPC operations; arbitrary external UCI writers
+that ignore this lock are outside its atomicity guarantee.
+
+Quick actions commit immediately. Official mobile profile creation, editing and deletion
 use the backend transactions described above; generic rpcd/UCI staging remains
 available to LuCI and must not treat a successful `uci.set` as committed.
 `owrtpc.refresh` applies the committed configuration. `add_time` accepts 60,

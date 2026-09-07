@@ -6,6 +6,15 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-r2] - 2026-09-07
+
+### Added
+
+- Mobile API 1.5 transactional profile deletion: expected
+  revision, write ACL, policy refresh and verified restoration on failure.
+- Remove a deleted profile's live and persisted counters under the engine lock,
+  preserving device diagnostics and every other profile's state.
+
 ## [0.2.0-r1] - 2026-09-06
 
 ### Added

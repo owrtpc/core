@@ -1,11 +1,13 @@
 # OWRTPC Mobile: product and technical design
 
-Status: product design active; M0 backend-contract and Flutter platform-spike
-implementation started on 2026-08-28.
+Status (2026-09-07): M3 implementation in progress for the shared Android and
+iOS app. Connection, quick actions, profile details, editing and creation are
+implemented, including transactional deletion (API 1.5). Profile
+reordering and the platform/release gates below remain open.
 
-This document defines the first mobile release and the decisions that must be
-validated before production feature work in `owrtpc/mobile`. It is not a
-delivery-date commitment.
+This document defines the first mobile release, the implementation progress
+and the validation still required in `owrtpc/mobile`. It is not a delivery-date
+commitment.
 
 ## Product promise
 
@@ -326,8 +328,8 @@ From r24 the backend exposes the authenticated, read-only
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 4,
-  "backend_version": "0.1.0-rNN",
+  "minor": 5,
+  "backend_version": "0.3.0-r2",
   "features": [
     "profiles.read",
     "profiles.write",
@@ -337,7 +339,8 @@ From r24 the backend exposes the authenticated, read-only
     "schedule-periods",
     "device-usage",
     "profile-edit-transaction",
-    "profile-create-transaction"
+    "profile-create-transaction",
+    "profile-delete-transaction"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -603,10 +606,27 @@ this product specification.
 
 ## Delivery roadmap
 
-### M0 - Contract and security spike (in progress)
+Implementation progress and release acceptance are tracked separately. The
+existing signed iPhone development installations do not close Android device
+testing or TestFlight/App Store acceptance.
+
+| Area | Implemented | Still required |
+| --- | --- | --- |
+| Core / LuCI | Standalone packages, API handshake, per-device usage, quick actions, transactional edit/create | Release and device verification of API 1.5 deletion; transactional ordering |
+| Shared mobile (iOS and Android) | HTTPS pairing, remembered credentials, session renewal, profiles, details, quick actions, edit/create, English/Italian, theme and version display | Finish M3 ordering; diagnostics/support settings and release audit |
+| Deletion (implemented) | Revision-bound API and mobile confirmation; post-delete verification; iOS/Android widget coverage and OpenWrt Docker lifecycle coverage | Signed rollout and physical-device acceptance |
+| iOS | Xcode target and previous signed iPhone installations | Verify each new signed build on iPhone; lifecycle/permissions/VoiceOver; TestFlight and App Store delivery |
+| Android | Native target and shared Flutter implementation/tests | Pinned Android build toolchain, signed artifacts, physical-device permissions/Keystore/TalkBack and closed Play testing |
+
+Tests run through the pinned Docker Flutter environment. iOS signing/builds
+require a macOS/Xcode environment; no additional host SDK is needed for this
+shared feature work. A supported build environment is a release dependency,
+not evidence that either platform has already passed physical-device gates.
+
+### M0 - Contract and security spike (implemented foundations; device gates open)
 
 - add and test the authenticated `owrtpc.capabilities` handshake in `core`
-  (implemented; release integration pending);
+  (implemented and included in released packages);
 - document exact JSON-RPC fixtures and UCI apply/confirm semantics;
 - choose the certificate-pairing setup and write the router HTTPS guide;
 - prove Flutter networking, pinning, secure storage and LAN permissions on both
@@ -617,7 +637,7 @@ this product specification.
 Exit: no unresolved blocker can expose credentials, silently overwrite a
 concurrent edit or claim an ambiguous apply succeeded.
 
-### M1 - Repository and read-only vertical slice
+### M1 - Repository and read-only vertical slice (implemented; cross-platform acceptance open)
 
 - create `owrtpc/mobile` with CI, linting, localization and architecture shell;
 - implement connection, authentication, capability negotiation and sign out;
@@ -627,7 +647,7 @@ concurrent edit or claim an ambiguous apply succeeded.
 Exit: Android and iOS physical devices can securely show the same live profile
 state through a restricted read-only account.
 
-### M2 - Quick actions
+### M2 - Quick actions (implemented; lifecycle/accessibility acceptance open)
 
 - implement Block/Unblock, Enable/Disable and Add time sheets;
 - verify post-write status and ambiguous-result recovery;
@@ -636,9 +656,9 @@ state through a restricted read-only account.
 Exit: every quick action preserves router semantics and never retries an
 unknown write automatically.
 
-### M3 - Profile editing
+### M3 - Profile editing (in progress)
 
-- implement details, create/edit/delete, device assignment and schedules;
+- implement details, create/edit/delete, reordering, device assignment and schedules;
 - implement draft, validation, conflict detection, apply/confirm and rollback
   recovery;
 - test the one-profile-per-device invariant against LuCI edits.
@@ -656,17 +676,13 @@ applied.
 Exit: store-ready builds pass the automated and manual release gates with no
 known high-severity security or accessibility issue.
 
-## Decisions still requiring owner approval
+## Adopted choices and outstanding distribution decisions
 
-The design recommends, but does not yet commit to:
+The repositories already implement Flutter, HTTPS-only connections with scoped
+certificate pairing, English/Italian localization and a local single-router
+companion. Full reset, multiple saved routers and notifications remain outside
+V1. Both iOS and Android are product targets.
 
-1. Flutter after the M0 physical-device spike.
-2. HTTPS-only production connections with explicit self-signed certificate
-   pairing.
-3. App Store and Google Play as primary distribution, with F-Droid/GitHub as a
-   later Android packaging decision.
-4. Excluding full reset, multiple routers and notifications from V1.
-5. English and Italian as the first maintained locales.
-
-Repository creation begins only after M0 resolves these decisions and the
-versioned mobile contract is available on a supported router backend.
+M4 must complete signing and store delivery for TestFlight/App Store and closed
+Android testing/Google Play. Optional F-Droid or signed GitHub distribution for
+Android remains a separate owner decision.
