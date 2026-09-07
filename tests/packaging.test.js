@@ -39,12 +39,14 @@ assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('profile_apply'));
 assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('profile_create'));
 assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('profile_delete'));
 assert.ok(!acl.owrtpc.read.ubus.owrtpc.includes('profile_delete'));
+assert.ok(acl.owrtpc.write.ubus.owrtpc.includes('profiles_reorder'));
+assert.ok(!acl.owrtpc.read.ubus.owrtpc.includes('profiles_reorder'));
 assert.ok(!acl.owrtpc.read.ubus.owrtpc.includes('reset'));
 const rpcPlugin = read('owrtpc/files/usr/libexec/rpcd/owrtpc');
 for (const value of [
 	"json_add_string api 'owrtpc-mobile'",
 	'json_add_int major 1',
-	'json_add_int minor 5',
+	'json_add_int minor 6',
 	"json_add_string '' 'profiles.read'",
 	"json_add_string '' 'profiles.write'",
 	"json_add_string '' 'quick-actions'",

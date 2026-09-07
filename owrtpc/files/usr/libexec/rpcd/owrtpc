@@ -404,6 +404,81 @@ rpc_profile_delete() (
 	fi
 )
 
+order_snapshot_section() {
+	local type
+	config_get type "$1" TYPE
+	printf '%s %s\n' "$1" "$type" >> "$transaction_dir/sections"
+	[ "$type" != profile ] || printf '%s\n' "$1" >> "$transaction_dir/profiles"
+}
+
+rpc_profiles_reorder() (
+	json_load "$1" || { rpc_profile_apply_error invalid_request 'Invalid JSON request'; return; }
+	json_get_var expected_revision expected_revision
+	json_get_type profiles_type profiles
+	case "$expected_revision" in
+		*[!0-9a-f]*|'') rpc_profile_apply_error invalid_request 'Invalid configuration revision'; return ;;
+	esac
+	[ "${#expected_revision}" -eq 64 ] && [ "$profiles_type" = array ] || {
+		rpc_profile_apply_error invalid_request 'Expected a revision and profile order array'; return
+	}
+	[ -z "$(uci -q changes owrtpc)" ] && [ "$(config_revision)" = "$expected_revision" ] || {
+		rpc_profile_apply_error conflicting_edit 'The OWRTPC configuration changed before ordering'; return
+	}
+	transaction_dir=$(mktemp -d /tmp/owrtpc-rpc-order.XXXXXX) || return 1
+	trap 'rm -rf "$transaction_dir"' EXIT
+	touch "$transaction_dir/order" "$transaction_dir/profiles" "$transaction_dir/sections"
+	json_select profiles
+	json_get_keys profile_keys
+	for key in $profile_keys; do
+		json_get_type section_type "$key"
+		json_get_var section "$key"
+		[ "$section_type" = string ] && safe_profile "$section" &&
+			! grep -Fqx -- "$section" "$transaction_dir/order" || {
+			rpc_profile_apply_error validation_failed 'Order must contain each existing profile exactly once'; return
+		}
+		printf '%s\n' "$section" >> "$transaction_dir/order"
+	done
+	json_select ..
+	config_load owrtpc
+	config_foreach order_snapshot_section
+	[ "$(wc -l < "$transaction_dir/order")" -eq "$(wc -l < "$transaction_dir/profiles")" ] || {
+		rpc_profile_apply_error validation_failed 'Order must contain every profile'; return
+	}
+	cp /etc/config/owrtpc "$transaction_dir/config" || return 1
+	# Anonymous UCI IDs depend on position. Persist their existing IDs before
+	# moving anything, so usage/overrides stay attached to the same profile.
+	while IFS= read -r section; do
+		uci -t "$transaction_dir" rename "owrtpc.$section=$section" || {
+			rpc_profile_apply_error apply_failed 'Unable to prepare profile identities'; return
+		}
+	done < "$transaction_dir/profiles"
+	index=0
+	while read -r section type; do
+		if [ "$type" = profile ]; then IFS= read -r section <&3; fi
+		uci -t "$transaction_dir" reorder "owrtpc.$section=$index" || {
+			rpc_profile_apply_error apply_failed 'Unable to prepare profile order'; return
+		}
+		index=$((index + 1))
+	done < "$transaction_dir/sections" 3< "$transaction_dir/order"
+	# Recheck before committing; never absorb unrelated default UCI deltas.
+	[ -z "$(uci -q changes owrtpc)" ] && [ "$(config_revision)" = "$expected_revision" ] || {
+		rpc_profile_apply_error conflicting_edit 'The OWRTPC configuration changed while ordering'; return
+	}
+	if uci -t "$transaction_dir" commit owrtpc &&
+		"$OWRTPCCTL" validate >/dev/null 2>&1 &&
+		"$OWRTPCCTL" apply >/dev/null 2>&1; then
+		json_init
+		json_add_boolean success 1
+		json_add_string revision "$(config_revision)"
+		json_dump
+	elif cp "$transaction_dir/config" /etc/config/owrtpc &&
+		"$OWRTPCCTL" apply >/dev/null 2>&1; then
+		rpc_profile_apply_error apply_failed 'Ordering failed and the previous configuration and policy were restored'
+	else
+		rpc_profile_apply_error outcome_unknown 'Ordering failed and restoration could not be confirmed'
+	fi
+)
+
 rpc_capabilities() {
 	package_owner=$(apk info --who-owns "$OWRTPCCTL" 2>/dev/null |
 		sed -n 's/^.* is owned by //p' | head -n 1)
@@ -417,7 +492,7 @@ rpc_capabilities() {
 	json_init
 	json_add_string api 'owrtpc-mobile'
 	json_add_int major 1
-	json_add_int minor 5
+	json_add_int minor 6
 	json_add_string backend_version "$backend_version"
 	json_add_array features
 	json_add_string '' 'profiles.read'
@@ -430,6 +505,7 @@ rpc_capabilities() {
 	json_add_string '' 'profile-edit-transaction'
 	json_add_string '' 'profile-create-transaction'
 	json_add_string '' 'profile-delete-transaction'
+	json_add_string '' 'profile-order-transaction'
 	json_close_array
 	json_add_string router_date "$(date +%F)"
 	json_add_string router_timezone "$router_timezone"
@@ -570,6 +646,10 @@ case "$1" in
 		json_add_string expected_revision String
 		json_add_string section String
 		json_close_object
+		json_add_object profiles_reorder
+		json_add_string expected_revision String
+		json_add_array profiles; json_close_array
+		json_close_object
 		json_add_object set_enabled
 		json_add_string profile String
 		json_add_string enabled Boolean
@@ -598,6 +678,7 @@ case "$1" in
 			profile_apply) rpc_write rpc_profile_apply "$request" ;;
 			profile_create) rpc_write rpc_profile_create "$request" ;;
 			profile_delete) rpc_write rpc_profile_delete "$request" ;;
+			profiles_reorder) rpc_write rpc_profiles_reorder "$request" ;;
 			set_enabled) rpc_write rpc_set_enabled "$request" ;;
 			set_block) rpc_write rpc_set_block "$request" ;;
 			add_time) rpc_write rpc_add_time "$request" ;;

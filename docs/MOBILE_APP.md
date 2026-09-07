@@ -1,9 +1,9 @@
 # OWRTPC Mobile: product and technical design
 
-Status (2026-09-07): M3 implementation in progress for the shared Android and
+Status (2026-09-07): M3 functionality implemented for the shared Android and
 iOS app. Connection, quick actions, profile details, editing and creation are
-implemented, including transactional deletion (API 1.5). Profile
-reordering and the platform/release gates below remain open.
+implemented, including transactional deletion (API 1.5) and ordering (API 1.6).
+Physical-device acceptance and the platform/release gates below remain open.
 
 This document defines the first mobile release, the implementation progress
 and the validation still required in `owrtpc/mobile`. It is not a delivery-date
@@ -328,8 +328,8 @@ From r24 the backend exposes the authenticated, read-only
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 5,
-  "backend_version": "0.3.0-r2",
+  "minor": 6,
+  "backend_version": "0.4.0-r3",
   "features": [
     "profiles.read",
     "profiles.write",
@@ -340,7 +340,8 @@ From r24 the backend exposes the authenticated, read-only
     "device-usage",
     "profile-edit-transaction",
     "profile-create-transaction",
-    "profile-delete-transaction"
+    "profile-delete-transaction",
+    "profile-order-transaction"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -606,14 +607,17 @@ this product specification.
 
 ## Delivery roadmap
 
+The executable work list is maintained in [ROADMAP.md](ROADMAP.md), with linked
+M3/M4 GitHub milestones and acceptance issues in both repositories.
+
 Implementation progress and release acceptance are tracked separately. The
 existing signed iPhone development installations do not close Android device
 testing or TestFlight/App Store acceptance.
 
 | Area | Implemented | Still required |
 | --- | --- | --- |
-| Core / LuCI | Standalone packages, API handshake, per-device usage, quick actions, transactional edit/create | Release and device verification of API 1.5 deletion; transactional ordering |
-| Shared mobile (iOS and Android) | HTTPS pairing, remembered credentials, session renewal, profiles, details, quick actions, edit/create, English/Italian, theme and version display | Finish M3 ordering; diagnostics/support settings and release audit |
+| Core / LuCI | Standalone packages, API handshake, per-device usage, quick actions, transactional edit/create/delete/order | Release and device verification of API 1.6 |
+| Shared mobile (iOS and Android) | HTTPS pairing, remembered credentials, session renewal, profiles, details, quick actions, edit/create/delete/order, English/Italian, theme and version display | Physical M3 acceptance; diagnostics/support settings and release audit |
 | Deletion (implemented) | Revision-bound API and mobile confirmation; post-delete verification; iOS/Android widget coverage and OpenWrt Docker lifecycle coverage | Signed rollout and physical-device acceptance |
 | iOS | Xcode target and previous signed iPhone installations | Verify each new signed build on iPhone; lifecycle/permissions/VoiceOver; TestFlight and App Store delivery |
 | Android | Native target and shared Flutter implementation/tests | Pinned Android build toolchain, signed artifacts, physical-device permissions/Keystore/TalkBack and closed Play testing |
@@ -656,12 +660,20 @@ state through a restricted read-only account.
 Exit: every quick action preserves router semantics and never retries an
 unknown write automatically.
 
-### M3 - Profile editing (in progress)
+### M3 - Profile editing (implemented; physical acceptance open)
 
 - implement details, create/edit/delete, reordering, device assignment and schedules;
 - implement draft, validation, conflict detection, apply/confirm and rollback
   recovery;
 - test the one-profile-per-device invariant against LuCI edits.
+
+Ordering uses `owrtpc.profiles_reorder` with the complete ordered section list
+and snapshot revision. The app offers labelled move controls and an explicit
+apply/discard flow, submits once and verifies committed plus live order. A
+conflict or unknown result requires reopening the screen. The backend persists
+anonymous section identifiers before moving them to preserve profile usage.
+Automated OpenWrt lifecycle and Android/iOS widget coverage do not replace the
+physical-device and assistive-technology acceptance gates.
 
 Exit: an interrupted or conflicting edit cannot be silently reported as
 applied.

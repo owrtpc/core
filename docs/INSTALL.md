@@ -8,7 +8,12 @@ OWRTPC has two packages from r22 onward:
 | `luci-app-owrtpc` | LuCI JavaScript, menu and translation sources | Optional web interface |
 
 Install `owrtpc` first and `luci-app-owrtpc` second. The current packages use
-version `0.1.0-r1`; this UI requires backend 0.1.0-r1 or newer. The backend
+version `0.1.0-r1` in the public v0.1.0 release; this UI requires backend
+0.1.0-r1 or newer. The commands below intentionally name those published files.
+For later releases use the filenames, matching backend/UI pair and instructions
+from the same [GitHub release](https://github.com/owrtpc/core/releases).
+Later source versions or local `dist/` files do not imply public availability.
+The backend
 has no dependency on `luci-base` or any web UI. `rpcd-mod-luci` is a standalone
 RPC module, required for DHCP leases and host hints despite its name.
 

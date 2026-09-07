@@ -6,6 +6,16 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0-r3] - 2026-09-07
+
+### Added
+
+- API 1.6 revision-bound profile ordering, with exact-permutation validation,
+  isolated staging and verified configuration/policy restoration on failure.
+- Persist existing anonymous profile identifiers when ordering so usage and
+  temporary credits stay attached to the same profiles.
+- Tracked M3/M4 public release roadmap and explicit device/distribution gates.
+
 ## [0.3.0-r2] - 2026-09-07
 
 ### Added

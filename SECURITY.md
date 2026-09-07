@@ -2,8 +2,12 @@
 
 ## Supported versions
 
-OWRTPC is currently pre-release software. Security fixes are applied to the
-latest code on `main`; no released version is supported yet.
+OWRTPC is early-stage software with a public v0.1.0 core release. Security fixes
+are developed on `main` and distributed in subsequent releases; there is no
+long-term support or backport commitment for older releases. Check the
+[release notes](https://github.com/owrtpc/core/releases) for available fixes.
+The mobile repository currently publishes source releases without installable
+public app artifacts. See [the release roadmap](docs/ROADMAP.md).
 
 ## Reporting a vulnerability
 

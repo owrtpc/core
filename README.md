@@ -60,7 +60,7 @@ later group. An overnight window continues with that same group after midnight.
 `owrtpc/` contains the standalone router backend package (`Makefile`, `files/`).
 `luci-app-owrtpc/` contains the optional LuCI package (`Makefile`, `htdocs/`,
 `root/`, `po/`). Tests, documentation and build tools are shared in this repository.
-The sibling `owrtpc/mobile` repository contains the Docker-first Flutter spike;
+The sibling `owrtpc/mobile` repository contains the Docker-first Flutter app;
 there is no separate LuCI repository.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
@@ -89,10 +89,11 @@ details.
 
 ## Mobile app
 
-The cross-platform companion is in its M0 contract and platform spike. Its
-separate repository now contains a Docker-first Flutter shell with the visual
-system, English/Italian localization, secure certificate pairing and live
-read-only profiles. See
+The cross-platform companion has implemented M3 functionality. Its separate repository includes
+English/Italian localization, HTTPS certificate pairing, remembered credentials,
+live profiles, quick actions and transactional profile creation, editing and
+deletion and ordering. Android/iOS device acceptance and public app distribution remain open.
+See [the public release roadmap](docs/ROADMAP.md) for tracked work and
 [the mobile design](docs/MOBILE_APP.md) for the V1 scope, security boundary,
 interaction model and delivery roadmap.
 

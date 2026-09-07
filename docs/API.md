@@ -57,8 +57,8 @@ response is:
 {
   "api": "owrtpc-mobile",
   "major": 1,
-  "minor": 5,
-  "backend_version": "0.3.0-r2",
+  "minor": 6,
+  "backend_version": "0.4.0-r3",
   "features": [
     "profiles.read",
     "profiles.write",
@@ -69,7 +69,8 @@ response is:
     "device-usage",
     "profile-edit-transaction",
     "profile-create-transaction",
-    "profile-delete-transaction"
+    "profile-delete-transaction",
+    "profile-order-transaction"
   ],
   "router_date": "2026-08-28",
   "router_timezone": "Europe/Rome"
@@ -144,7 +145,28 @@ must never automatically retry a deletion, including after session expiry.
 The action lock serializes OWRTPC operations; arbitrary external UCI writers
 that ignore this lock are outside its atomicity guarantee.
 
-Quick actions commit immediately. Official mobile profile creation, editing and deletion
+Contract 1.6 adds `profile-order-transaction`. The write-only
+`owrtpc.profiles_reorder` method accepts `expected_revision` and a `profiles`
+array containing every current profile section ID exactly once, in the desired
+order. Unknown/non-profile IDs, duplicates and omissions are rejected. An empty
+array is valid only when no profiles exist. Pending default UCI changes or a
+changed revision return `conflicting_edit` without committing anything.
+
+The action lock and isolated UCI staging protect the transaction. Existing
+anonymous profile IDs are persisted as explicit section names before ordering:
+otherwise UCI derives new IDs from their new positions and usage can follow the
+wrong profile. All profile values, counters and non-profile section positions
+are preserved. Policy application is checked; `apply_failed` means the prior
+configuration and policy were restored, while `outcome_unknown` requires a
+fresh read because restoration could not be confirmed. The external-writer
+atomicity limitation above also applies to ordering.
+
+Success returns `success: true` and the resulting `revision`. The client must
+re-read `edit_snapshot` and `status`, confirm both contain exactly the requested
+order and that the snapshot revision matches the returned revision. Send once;
+never replay an unknown write after transport failure or session renewal.
+
+Quick actions commit immediately. Official mobile profile creation, editing, deletion and ordering
 use the backend transactions described above; generic rpcd/UCI staging remains
 available to LuCI and must not treat a successful `uci.set` as committed.
 `owrtpc.refresh` applies the committed configuration. `add_time` accepts 60,

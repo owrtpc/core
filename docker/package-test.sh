@@ -136,7 +136,7 @@ printf '%s\n' "$status" | grep -q '"used_seconds": 456'
 capabilities=$(ubus call owrtpc capabilities)
 printf '%s\n' "$capabilities" | jsonfilter -e '@.api' | grep -qx owrtpc-mobile
 printf '%s\n' "$capabilities" | jsonfilter -e '@.major' | grep -qx 1
-printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 5
+printf '%s\n' "$capabilities" | jsonfilter -e '@.minor' | grep -qx 6
 [ "$(printf '%s\n' "$capabilities" | jsonfilter -e '@.backend_version')" = "$version-r$release" ]
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.read
 printf '%s\n' "$capabilities" | jsonfilter -e '@.features[*]' | grep -qx profiles.write
@@ -178,6 +178,7 @@ check_access ubus owrtpc capabilities
 check_access ubus owrtpc edit_snapshot
 check_access ubus owrtpc profile_apply
 check_access ubus owrtpc profile_create
+check_access ubus owrtpc profiles_reorder
 check_access ubus owrtpc profile_delete
 check_access ubus owrtpc set_block
 check_access ubus owrtpc reset
@@ -269,6 +270,9 @@ session=$(ubus call session login '{"username":"owrtpc-reader","password":"owrtp
 check_access ubus owrtpc status
 if check_access ubus owrtpc reset; then
 	echo 'FAIL: read-only user may reset' >&2; exit 1
+fi
+if check_access ubus owrtpc profiles_reorder; then
+	echo 'FAIL: read-only user may reorder profiles' >&2; exit 1
 fi
 if check_access ubus owrtpc profile_delete; then
 	echo 'FAIL: read-only user may delete profiles' >&2; exit 1
