@@ -38,6 +38,9 @@ Milestones: [core](https://github.com/owrtpc/core/milestones) and
 [mobile](https://github.com/owrtpc/mobile/milestones). Issue checklists track
 remaining M4 release checks; M4 has no committed delivery date.
 
+The [OpenWrt contribution path](UPSTREAM.md) records independent distribution,
+feed review and the unresolved cross-feed dependency decision.
+
 Security and OpenWrt conformance are explicit promotion gates:
 [core review](https://github.com/owrtpc/core/issues/4) and
 [mobile review](https://github.com/owrtpc/mobile/issues/7). No announcement should
