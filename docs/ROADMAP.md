@@ -21,7 +21,7 @@ passing CI run or a local signed installation does not close device/store gates.
   production signing identity and device/store acceptance remain open.
 - The owner has confirmed the local signed iOS installation works after the
   provisioning/trust renewal. The complete device matrix remains open.
-- M4 security candidates are core/LuCI 0.4.0-r4 and mobile 0.4.2+19. The
+- M4 security candidates are core/LuCI 0.4.0-r5 and mobile 0.4.2+19. The
   [review and OpenWrt matrix](RELEASE_REVIEW.md) record fixes, automated evidence
   and remaining gates; earlier draft packages are not the promotion candidate.
 

@@ -1,6 +1,6 @@
 # Security and OpenWrt release review
 
-Review started 2026-09-08 for core/LuCI 0.4.0-r4 and mobile 0.4.2+19.
+Review started 2026-09-08 for core/LuCI 0.4.0-r5 and mobile 0.4.2+19.
 This is an internal engineering review, not an independent penetration test,
 an OpenWrt endorsement or a guarantee that defects cannot remain. Promotion is
 blocked until the remaining release gates below have evidence.
@@ -28,13 +28,14 @@ clock changes, router reboot and firmware variants require release acceptance.
 | Profile and quick-flag writes | Isolated UCI savedirs, checked staging/commit/application, pending-edit refusal and checked restoration | `docker/profile-write-test.sh`, real UCI plus injected commit/application failures |
 | Profile text | Reject control characters before CLI/status serialization | Newline/tab requests refused without changing configuration |
 | Authorization | Verify every OWRTPC write method through the HTTP ubus bridge | `docker/http-acl-test.sh`: anonymous and read-only denial; read-only status succeeds |
+| LuCI text | Use text nodes for device labels, notifications, errors and version text; LuCI scalar children are interpreted as HTML | `tests/luci-text.test.js` failed on the prior source and passes with the fix |
 | Mobile TLS | Enforce an existing certificate pin even if another certificate passes CA validation; invalidate pooled connections when trust changes | Real local TLS regression tests in mobile |
 | Mobile network bounds | HTTPS-only credential transport, no redirects, streaming size limits and request deadline | Oversized and continuous slow responses tested |
 | Mobile privacy | Android secure window and cleartext prohibition; iOS background cover | Native compilation plus pending physical acceptance |
 | Supply chain | Full-history secret scan, BusyBox ShellCheck, Dart/Maven OSV scan; actions pinned by commit and scanners by digest | Mandatory CI jobs in both repositories |
 
-Initial local evidence: core engine/source/release/package checks pass;
-the first hardened candidate passed all four lifecycle modes (clean, headless,
+Local evidence: core engine/source/release/package and LuCI text checks pass;
+the unsigned r5 candidate passed all four lifecycle modes (clean, headless,
 historical monolith migration and split upgrade). Later changes must rerun the
 relevant checks. Mobile has 117 passing tests and a successful iOS Profile
 compilation. OSV found no known vulnerabilities in 67 Dart and 53 resolved Maven
@@ -96,3 +97,8 @@ upstream acceptance.
 Record commit, version, artifact hash, OS/firmware, test date and result in the
 [release roadmap](ROADMAP.md) issues. Keep suspected unpatched vulnerabilities
 out of public issues and use [private reporting](../SECURITY.md).
+
+The [OpenWrt 25.12.5 security announcement](https://lists.openwrt.org/pipermail/openwrt-announce/2026-June/000088.html)
+includes fixes in default network services, uhttpd and LuCI. The tested security
+baseline is 25.12.5 with maintained package updates, not every earlier 25.12
+point release. Vendor firmware needs equivalent fixes verified separately.

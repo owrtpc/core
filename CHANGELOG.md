@@ -6,6 +6,14 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0-r5] - 2026-09-08
+
+### Fixed
+
+- Render discovered device names, profile notifications and RPC error/version
+  text through LuCI text nodes instead of HTML interpretation, including
+  DynamicList selected labels. Add malicious-markup regression coverage.
+
 ## [0.4.0-r4] - 2026-09-08
 
 ### Fixed

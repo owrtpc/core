@@ -126,7 +126,7 @@ function queueNotification(message) {
 		window.sessionStorage.setItem('owrtpc-notification', message);
 	}
 	catch (error) {
-		ui.addNotification(null, E('p', {}, message), 'info');
+		ui.addNotification(null, E('p', {}, [ message ]), 'info');
 	}
 }
 
@@ -143,7 +143,7 @@ function showQueuedNotification() {
 	}
 	catch (error) {}
 	if (message)
-		ui.addNotification(null, E('p', {}, message), 'info');
+		ui.addNotification(null, E('p', {}, [ message ]), 'info');
 }
 
 function setQuickActionDisabled(control, disabled) {
@@ -166,7 +166,7 @@ function runQuickAction(control, request, successMessage) {
 		reloadWithNotification(successMessage);
 	}).catch(function(error) {
 		setQuickActionDisabled(control, false);
-		ui.addNotification(null, E('p', {}, error.message), 'error');
+		ui.addNotification(null, E('p', {}, [ error.message ]), 'error');
 	});
 }
 
@@ -206,8 +206,8 @@ return view.extend({
 					reloadWithNotification(_('OWRTPC has been reset. Create new profiles to enable parental-control rules.'));
 				}).catch(function(error) {
 					ui.hideModal();
-					ui.addNotification(null, E('p', {},
-						_('Reset could not be confirmed. Check the current OWRTPC status before trying again. Details: %s').format(error.message)), 'error');
+					ui.addNotification(null, E('p', {}, [
+						_('Reset could not be confirmed. Check the current OWRTPC status before trying again. Details: %s').format(error.message) ]), 'error');
 				});
 			}
 		}, _('Reset all OWRTPC data'));
@@ -241,9 +241,9 @@ return view.extend({
 		document.addEventListener('uci-applied', function() {
 			callRefresh().then(function(result) {
 				if (!result.success)
-					ui.addNotification(null, E('p', {}, result.error || _('Configuration was applied but policy refresh failed.')), 'warning');
+					ui.addNotification(null, E('p', {}, [ result.error || _('Configuration was applied but policy refresh failed.') ]), 'warning');
 			}).catch(function(error) {
-				ui.addNotification(null, E('p', {}, error.message), 'warning');
+				ui.addNotification(null, E('p', {}, [ error.message ]), 'warning');
 			});
 		}, { once: true });
 		var status = {};
@@ -315,7 +315,7 @@ return view.extend({
 		o.rmempty = true;
 		o.description = _('A device may belong to one profile only. Disable MAC randomization for this network on the client.');
 		deviceList.forEach(function(device) {
-			o.value(device.mac, deviceLabel(device));
+			o.value(device.mac, E('span', {}, [ deviceLabel(device) ]));
 		});
 		bindDeviceAutocomplete(o, deviceMap, assignments);
 		o.textvalue = function(sectionId) {
@@ -326,7 +326,7 @@ return view.extend({
 				var mac = canonicalMac(value);
 				var device = deviceMap[mac];
 				var name = device && (device.name || device.hostnames[0]);
-				return E('div', {}, name ? name + ' — ' + mac : mac);
+				return E('div', {}, [ name ? name + ' — ' + mac : mac ]);
 			});
 			return rows.length ? E('div', {}, rows) : E('em', {}, _('none'));
 		};
@@ -515,8 +515,8 @@ return view.extend({
 					'disabled': !this.canReset || null,
 					'click': ui.createHandlerFn(this, 'handleFullReset')
 				}, _('Reset all OWRTPC data'))
-			]), E('p', { 'class': 'cbi-section-descr' },
-				_('OWRTPC core version %s').format(coreVersion)) ]);
+			]), E('p', { 'class': 'cbi-section-descr' }, [
+				_('OWRTPC core version %s').format(coreVersion) ]) ]);
 		}, this));
 	}
 });

@@ -55,7 +55,7 @@ function harness({ writable = true, changes = {}, response = { success: true }, 
 		const button = rendered.children[1].children[2];
 		assert.equal(button.disabled, access === true ? null : true,
 			'HTML disabled attribute is omitted only with an explicit RPC grant');
-		assert.equal(rendered.children[2].children, 'OWRTPC core version 0.1.0-r1');
+		assert.deepEqual(rendered.children[2].children, ['OWRTPC core version 0.1.0-r1']);
 	}
 	const cancel = harness();
 	assert.equal(cancel.confirm.disabled, true);

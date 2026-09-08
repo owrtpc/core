@@ -331,6 +331,7 @@ sh "$PROJECT_DIR/tests/state-security.sh"
 if command -v node >/dev/null 2>&1; then
 	node "$PROJECT_DIR/tests/devices.test.js"
 	node "$PROJECT_DIR/tests/reset.test.js"
+	node "$PROJECT_DIR/tests/luci-text.test.js"
 else
 	printf 'skip - device autocomplete tests require Node.js\n'
 fi
