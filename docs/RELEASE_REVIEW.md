@@ -77,7 +77,21 @@ directly. Before an upstream submission, recheck the target repository's current
 requirements and prepare focused patches rather than treating this matrix as
 upstream acceptance.
 
+## Naming and trademark gate
+
+The [OpenWrt trademark policy](https://openwrt.org/trademark), reviewed from its
+indexed official English text on 2026-09-08, allows truthful compatibility
+statements but restricts confusing names and creating acronyms from its marks.
+The OWRTPC name has not received a trademark clearance: if it abbreviates
+OpenWrt Parental Control, obtain written clarification/permission or choose an
+independent name before promotion. A non-affiliation notice alone does not
+resolve that naming question. Technical conformance is separate from branding.
+No permission request has been sent.
+
 ## Gates before promotion
+
+- Resolve the OWRTPC naming/trademark question with written clarification or
+  a reviewed independent name before public promotion.
 
 - All CI jobs green for the exact candidate commit; no unresolved high-impact
   finding, and documented disposition of every remaining review finding.

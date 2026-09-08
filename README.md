@@ -109,3 +109,7 @@ Licensed under the [Apache License 2.0](LICENSE).
 
 OpenWrt and LuCI are separate projects. OWRTPC is not affiliated with or
 endorsed by the OpenWrt project.
+
+OpenWrt is a registered trademark owned by Software Freedom Conservancy (SFC).
+See [OpenWrt](https://openwrt.org) and its [trademark policy](https://openwrt.org/trademark).
+The OWRTPC name remains subject to the [pre-promotion naming review](docs/RELEASE_REVIEW.md#naming-and-trademark-gate).

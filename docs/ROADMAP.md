@@ -21,7 +21,8 @@ passing CI run or a local signed installation does not close device/store gates.
   production signing identity and device/store acceptance remain open.
 - The owner has confirmed the local signed iOS installation works after the
   provisioning/trust renewal. The complete device matrix remains open.
-- M4 security candidates are core/LuCI 0.4.0-r5 and mobile 0.4.2+19. The
+- The validated M4 security baseline is core/LuCI 0.4.0-r5 and mobile 0.4.2+19.
+  Credits updates advance the candidates to core/LuCI 0.4.0-r6 and mobile 0.4.3+20. The
   [review and OpenWrt matrix](RELEASE_REVIEW.md) record fixes, automated evidence
   and remaining gates; earlier draft packages are not the promotion candidate.
 
@@ -50,7 +51,8 @@ vulnerabilities. Record the tested firmware/platform scope.
 3. Complete reproducible Android signing and iOS distribution preparation.
 4. Complete setup/support/privacy surfaces and physical-device acceptance.
 5. Run TestFlight and closed Android testing; resolve release-blocking findings.
-6. Repeat release scans, publish compatible signed releases and installation
+6. Resolve the naming/trademark review (written clarification or independent
+   naming); repeat release scans, publish compatible signed releases and installation
    instructions, then promote within the verified support scope.
 
 Core/LuCI can be released before mobile store delivery once its own gates pass.

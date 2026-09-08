@@ -515,8 +515,22 @@ return view.extend({
 					'disabled': !this.canReset || null,
 					'click': ui.createHandlerFn(this, 'handleFullReset')
 				}, _('Reset all OWRTPC data'))
-			]), E('p', { 'class': 'cbi-section-descr' }, [
-				_('OWRTPC core version %s').format(coreVersion) ]) ]);
+			]), E('div', { 'class': 'cbi-section-descr' }, [
+				E('p', {}, [ _('OWRTPC core version %s').format(coreVersion) ]),
+				E('p', {}, [ _('Free software. Local control.'), E('br'),
+					_('Developed by Fabrizio Pellegrini and OWRTPC contributors.'), ' ',
+					E('a', { 'href': 'https://github.com/desmofab', 'target': '_blank',
+						'rel': 'noopener noreferrer' }, [ '@desmofab' ]), E('br'),
+					_('Thanks to the OpenWrt and LuCI communities.') ]),
+				E('p', {}, [
+					E('a', { 'href': 'https://github.com/owrtpc/core', 'target': '_blank',
+						'rel': 'noopener noreferrer' }, [ _('Source code') ]), ' · ',
+					E('a', { 'href': 'https://github.com/owrtpc/core/blob/main/LICENSE',
+						'target': '_blank', 'rel': 'noopener noreferrer' }, [ _('Apache-2.0 licence') ]),
+					E('br'), _('Independent project, not affiliated with OpenWrt.'), E('br'),
+					_('OpenWrt is a registered trademark of Software Freedom Conservancy (SFC).'), ' ',
+					E('a', { 'href': 'https://openwrt.org', 'target': '_blank',
+						'rel': 'noopener noreferrer' }, [ 'openwrt.org' ]) ]) ]) ]);
 		}, this));
 	}
 });

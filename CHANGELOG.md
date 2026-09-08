@@ -6,6 +6,13 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0-r6] - 2026-09-08
+
+### Added
+
+- Discreet LuCI footer credits with the maintainer GitHub profile, OpenWrt/LuCI
+  acknowledgements, source and licence links, and independent-project wording.
+
 ## [0.4.0-r5] - 2026-09-08
 
 ### Fixed
