@@ -47,8 +47,12 @@ The packaging-only SDK helper disables minification and uses OpenWrt's
 `NO_DEPS=1` target traversal because these two packages contain only shell, JS
 and data, with no compiled translations. It preserves normal dependency
 metadata and does not suppress compile errors, APK dependency checks or
-signature checks. Future native code or translated catalogs require revisiting
-this helper and building the relevant host/target prerequisites.
+signature checks. `sh scripts/sdk-build.sh --full` additionally traverses normal
+host/target dependencies and enables LuCI JavaScript minification. The mandatory
+`full-sdk` CI job runs that path on native x86_64 with the pinned SDK and feeds;
+`sh scripts/ci-sdk-full.sh` reproduces it. Neither path may suppress a build
+failure. Future native code or translated catalogs require revisiting the
+packaging-only helper.
 
 ## Local verification
 
@@ -99,11 +103,13 @@ Never commit or rotate it as part of the package split.
 
 Required order:
 
-1. Increment `PKG_RELEASE` in both Makefiles and update `CHANGELOG.md`. Never
-   reuse an already distributed version. r22 is the first split release.
+1. Increment `PKG_RELEASE` in both Makefiles for a package revision, or reset
+   it to 1 when `PKG_VERSION` changes, and update `CHANGELOG.md`. Never reuse
+   an already distributed version. r22 is the first split release.
 2. Run source tests, build ephemeral test APKs and pass the Docker lifecycle
    suite including migration from the historical package.
-3. Commit with `git commit --signoff`, push `main` and wait for **all CI jobs**
+3. Commit with a matching real-name author and `git commit --signoff`, push
+   `main` and wait for **all CI jobs**
    on that exact commit to succeed.
 4. From clean `main` run:
 

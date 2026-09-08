@@ -6,6 +6,24 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0-r4] - 2026-09-08
+
+### Fixed
+
+- Refuse unsafe or symlinked runtime/persistent state directories and entries
+  before writing router state.
+- Stage profile creation/editing and quick flags in an isolated UCI directory; reject pending
+  local edits, check staging/commit failures and verify rollback outcomes.
+- Reject profile-name control characters that would corrupt status rows.
+
+### Development
+
+- Add mandatory full SDK dependency/minification, secret and shell-analysis
+  CI gates, plus a security/OpenWrt conformance review and promotion checklist.
+
+- Add transport-level ACL and failure-path regression checks; record M4
+  security and OpenWrt conformance review requirements.
+
 ## [0.4.0-r3] - 2026-09-07
 
 ### Added

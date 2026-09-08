@@ -10,8 +10,9 @@ Use this repository as the working directory. Preserve unrelated local edits.
   scripts/build-signed-apk.sh; never bypass its preflight check.
 - A clean worktree, including untracked files, is required. The live remote
   main commit must equal HEAD. Offline release builds are not allowed.
-- Increment PKG_RELEASE and update the changelog before the commit for a new
-  release. Never overwrite a distributed package version.
+- For a new package revision, increment PKG_RELEASE. When PKG_VERSION changes,
+  reset PKG_RELEASE to 1, following OpenWrt conventions. Update the changelog
+  before the release commit. Never overwrite a distributed package version.
 - Keep the APK, its .sha256 and .buildinfo together. Never commit private keys.
 - A failed check is a reason to stop the release, not to disable the check.
 - Do not commit or push for unrelated tasks without user authorization.

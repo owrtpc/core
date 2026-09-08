@@ -9,6 +9,9 @@ long-term support or backport commitment for older releases. Check the
 The mobile repository currently publishes source releases without installable
 public app artifacts. See [the release roadmap](docs/ROADMAP.md).
 
+The [release security and OpenWrt review](docs/RELEASE_REVIEW.md) records the
+current audit scope, automated checks and remaining physical acceptance gates.
+
 ## Reporting a vulnerability
 
 Please do not disclose a suspected vulnerability in a public GitHub issue.

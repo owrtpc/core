@@ -268,6 +268,7 @@ uci commit rpcd
 ubus -t 30 wait_for session owrtpc
 session=$(ubus call session login '{"username":"owrtpc-reader","password":"owrtpc"}' | jsonfilter -e '@.ubus_rpc_session')
 check_access ubus owrtpc status
+sh /project/docker/http-acl-test.sh "$session"
 if check_access ubus owrtpc reset; then
 	echo 'FAIL: read-only user may reset' >&2; exit 1
 fi

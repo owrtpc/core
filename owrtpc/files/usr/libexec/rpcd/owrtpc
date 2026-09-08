@@ -207,22 +207,48 @@ check_other_profile() {
 		config_list_foreach "$1" device check_assigned_device
 }
 
-restore_profile_config() {
-	cp "$1" /etc/config/owrtpc
-	"$OWRTPCCTL" apply >/dev/null 2>&1 || true
+transaction_delete() {
+	if uci -t "$transaction_dir" -q get "$1" >/dev/null; then
+		uci -t "$transaction_dir" delete "$1"
+	fi
 }
 
 set_bedtime_options() {
-	section="$1"
-	period="$2"
-	start="$3"
-	end="$4"
+	local section="$1" period="$2" start="$3" end="$4"
 	if [ -n "$start" ]; then
-		uci set "owrtpc.$section.${period}_bedtime_start=$start"
-		uci set "owrtpc.$section.${period}_bedtime_end=$end"
+		uci -t "$transaction_dir" set "owrtpc.$section.${period}_bedtime_start=$start" &&
+		uci -t "$transaction_dir" set "owrtpc.$section.${period}_bedtime_end=$end"
 	else
-		uci -q delete "owrtpc.$section.${period}_bedtime_start" || true
-		uci -q delete "owrtpc.$section.${period}_bedtime_end" || true
+		transaction_delete "owrtpc.$section.${period}_bedtime_start" &&
+		transaction_delete "owrtpc.$section.${period}_bedtime_end"
+	fi
+}
+
+stage_profile_config() {
+	local option device
+	if [ "$mode" = create ]; then
+		section=$(uci -t "$transaction_dir" add owrtpc profile) || return 1
+		uci -t "$transaction_dir" set "owrtpc.$section.blocked=0" || return 1
+	fi
+	uci -t "$transaction_dir" set "owrtpc.$section.name=$name" || return 1
+	uci -t "$transaction_dir" set "owrtpc.$section.enabled=$enabled" || return 1
+	uci -t "$transaction_dir" set "owrtpc.$section.mon_thu_daily_minutes=$mon_thu" || return 1
+	uci -t "$transaction_dir" set "owrtpc.$section.fri_sun_daily_minutes=$fri_sun" || return 1
+	transaction_delete "owrtpc.$section.device" || return 1
+	while IFS= read -r device; do
+		uci -t "$transaction_dir" add_list "owrtpc.$section.device=$device" || return 1
+	done < "$devices_file"
+	for option in daily_minutes weekday_daily_minutes weekend_daily_minutes \
+		bedtime_start bedtime_end weekday_bedtime_start weekday_bedtime_end \
+		weekend_bedtime_start weekend_bedtime_end; do
+		transaction_delete "owrtpc.$section.$option" || return 1
+	done
+	set_bedtime_options "$section" sun_thu "$sun_start" "$sun_end" || return 1
+	set_bedtime_options "$section" fri_sat "$fri_start" "$fri_end" || return 1
+	if [ "$threshold" -eq 0 ]; then
+		transaction_delete "owrtpc.$section.activity_threshold_bytes"
+	else
+		uci -t "$transaction_dir" set "owrtpc.$section.activity_threshold_bytes=$threshold"
 	fi
 }
 
@@ -257,6 +283,9 @@ rpc_profile_write() (
 	[ -n "$name" ] && [ "${#name}" -le 80 ] || {
 		rpc_profile_apply_error validation_failed 'Profile name is required and must not exceed 80 characters'; return
 	}
+	[ "$(printf '%s' "$name" | LC_ALL=C tr -d '\000-\037\177')" = "$name" ] || {
+		rpc_profile_apply_error validation_failed 'Profile names must not contain control characters'; return
+	}
 	case "$enabled" in 1|true) enabled=1 ;; 0|false) enabled=0 ;;
 		*) rpc_profile_apply_error validation_failed 'enabled must be a boolean'; return ;;
 	esac
@@ -276,9 +305,11 @@ rpc_profile_write() (
 		rpc_profile_apply_error validation_failed 'devices must be an array'; return
 	}
 
-	devices_file=$(mktemp /tmp/owrtpc-rpc-devices.XXXXXX) || return 1
-	backup_file=$(mktemp /tmp/owrtpc-rpc-config.XXXXXX) || { rm -f "$devices_file"; return 1; }
-	trap 'rm -f "$devices_file" "$backup_file"' EXIT
+	transaction_dir=$(mktemp -d /tmp/owrtpc-rpc-profile.XXXXXX) || return 1
+	devices_file="$transaction_dir/devices"
+	backup_file="$transaction_dir/config"
+	: > "$devices_file"
+	trap 'rm -rf "$transaction_dir"' EXIT
 	json_select devices
 	json_get_keys device_keys
 	for key in $device_keys; do
@@ -295,7 +326,7 @@ rpc_profile_write() (
 	json_select ..
 
 	current_revision=$(config_revision)
-	[ "$current_revision" = "$expected_revision" ] || {
+	[ -z "$(uci -q changes owrtpc)" ] && [ "$current_revision" = "$expected_revision" ] || {
 		rpc_profile_apply_error conflicting_edit 'The OWRTPC configuration changed after this draft was opened'; return
 	}
 	PROFILE_APPLY_SECTION="$section"
@@ -309,44 +340,21 @@ rpc_profile_write() (
 
 	cp /etc/config/owrtpc "$backup_file" || return 1
 	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
-	if [ "$mode" = create ]; then
-		section=$(uci add owrtpc profile) || {
-			rpc_profile_apply_error apply_failed 'Unable to create the profile'
-			return
-		}
-		uci set "owrtpc.$section.blocked=0"
-	fi
-	uci set "owrtpc.$section.name=$name"
-	uci set "owrtpc.$section.enabled=$enabled"
-	uci set "owrtpc.$section.mon_thu_daily_minutes=$mon_thu"
-	uci set "owrtpc.$section.fri_sun_daily_minutes=$fri_sun"
-	uci -q delete "owrtpc.$section.device" || true
-	while IFS= read -r device; do
-		uci add_list "owrtpc.$section.device=$device"
-	done < "$devices_file"
-	for option in daily_minutes weekday_daily_minutes weekend_daily_minutes \
-		bedtime_start bedtime_end weekday_bedtime_start weekday_bedtime_end \
-		weekend_bedtime_start weekend_bedtime_end; do
-		uci -q delete "owrtpc.$section.$option" || true
-	done
-	set_bedtime_options "$section" sun_thu "$sun_start" "$sun_end"
-	set_bedtime_options "$section" fri_sat "$fri_start" "$fri_end"
-	if [ "$threshold" -eq 0 ]; then
-		uci -q delete "owrtpc.$section.activity_threshold_bytes" || true
+	stage_profile_config || {
+		rpc_profile_apply_error apply_failed 'Unable to stage the complete profile'; return
+	}
+	[ -z "$(uci -q changes owrtpc)" ] && [ "$(config_revision)" = "$expected_revision" ] || {
+		rpc_profile_apply_error conflicting_edit 'The OWRTPC configuration changed before commit'; return
+	}
+	if uci -t "$transaction_dir" commit owrtpc &&
+		"$OWRTPCCTL" validate >/dev/null 2>&1 &&
+		"$OWRTPCCTL" apply >/dev/null 2>&1; then
+		:
+	elif cp "$backup_file" /etc/config/owrtpc &&
+		"$OWRTPCCTL" apply >/dev/null 2>&1; then
+		rpc_profile_apply_error apply_failed 'The profile update failed and the previous configuration and policy were restored'; return
 	else
-		uci set "owrtpc.$section.activity_threshold_bytes=$threshold"
-	fi
-	uci commit owrtpc
-
-	if ! "$OWRTPCCTL" validate >/dev/null 2>&1; then
-		restore_profile_config "$backup_file"
-		rpc_profile_apply_error validation_failed 'The router rejected the complete profile configuration'
-		return
-	fi
-	if ! "$OWRTPCCTL" apply; then
-		restore_profile_config "$backup_file"
-		rpc_profile_apply_error apply_failed 'Policy refresh failed and the previous configuration was restored'
-		return
+		rpc_profile_apply_error outcome_unknown 'The profile update failed and restoration could not be confirmed'; return
 	fi
 	json_init
 	json_add_boolean success 1
@@ -522,18 +530,44 @@ rpc_set_enabled() {
 		0|false) value=0 ;;
 		*) rpc_error 'enabled must be a boolean'; return ;;
 	esac
-	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
-	uci set "owrtpc.$profile.enabled=$value"
-	uci commit owrtpc
-	if "$OWRTPCCTL" apply; then
+	if rpc_set_flag enabled; then
 		json_init
 		json_add_boolean success 1
 		json_add_boolean enabled "$value"
 		json_dump
-	else
-		rpc_error 'Policy refresh failed'
 	fi
 }
+
+# Quick flags use the same isolated savedir and checked rollback as profile
+# edits. They must never commit a LuCI/CLI user's pending configuration.
+rpc_set_flag() (
+	option="$1"
+	[ -z "$(uci -q changes owrtpc)" ] || {
+		rpc_error 'The OWRTPC configuration has pending edits'; return 1
+	}
+	revision=$(config_revision)
+	transaction_dir=$(mktemp -d /tmp/owrtpc-rpc-flag.XXXXXX) || return 1
+	trap 'rm -rf "$transaction_dir"' EXIT
+	cp /etc/config/owrtpc "$transaction_dir/config" || return 1
+	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
+	uci -t "$transaction_dir" set "owrtpc.$profile.$option=$value" || {
+		rpc_error 'Unable to stage the profile flag'; return 1
+	}
+	[ -z "$(uci -q changes owrtpc)" ] && [ "$(config_revision)" = "$revision" ] || {
+		rpc_error 'The OWRTPC configuration changed before commit'; return 1
+	}
+	if uci -t "$transaction_dir" commit owrtpc &&
+		"$OWRTPCCTL" validate >/dev/null 2>&1 &&
+		"$OWRTPCCTL" apply >/dev/null 2>&1; then
+		return 0
+	elif cp "$transaction_dir/config" /etc/config/owrtpc &&
+		"$OWRTPCCTL" apply >/dev/null 2>&1; then
+		rpc_error 'The flag update failed; the previous configuration and policy were restored'
+	else
+		rpc_error 'The flag update failed; restoration could not be confirmed. Refresh before retrying'
+	fi
+	return 1
+)
 
 rpc_set_block() {
 	json_load "$1" || { rpc_error 'Invalid JSON request'; return; }
@@ -545,13 +579,8 @@ rpc_set_block() {
 		0|false) value=0 ;;
 		*) rpc_error 'blocked must be a boolean'; return ;;
 	esac
-	"$OWRTPCCTL" sample >/dev/null 2>&1 || true
-	uci set "owrtpc.$profile.blocked=$value"
-	uci commit owrtpc
-	if "$OWRTPCCTL" apply; then
+	if rpc_set_flag blocked; then
 		json_init; json_add_boolean success 1; json_dump
-	else
-		rpc_error 'Policy refresh failed'
 	fi
 }
 

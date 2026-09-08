@@ -1,6 +1,6 @@
 # Public release roadmap
 
-Updated 2026-09-07. Implementation and release acceptance are separate: a
+Updated 2026-09-08. Implementation and release acceptance are separate: a
 passing CI run or a local signed installation does not close device/store gates.
 
 ## Current baseline
@@ -19,6 +19,11 @@ passing CI run or a local signed installation does not close device/store gates.
   open in core issue 3.
 - Mobile 0.4.1+18 adds Android build/signing tooling and native Linux CI validation;
   production signing identity and device/store acceptance remain open.
+- The owner has confirmed the local signed iOS installation works after the
+  provisioning/trust renewal. The complete device matrix remains open.
+- M4 security candidates are core/LuCI 0.4.0-r4 and mobile 0.4.2+19. The
+  [review and OpenWrt matrix](RELEASE_REVIEW.md) record fixes, automated evidence
+  and remaining gates; earlier draft packages are not the promotion candidate.
 
 ## Tracked work
 
@@ -31,14 +36,22 @@ Milestones: [core](https://github.com/owrtpc/core/milestones) and
 [mobile](https://github.com/owrtpc/mobile/milestones). Issue checklists track
 remaining acceptance; neither milestone has a committed delivery date.
 
+Security and OpenWrt conformance are explicit promotion gates:
+[core review](https://github.com/owrtpc/core/issues/4) and
+[mobile review](https://github.com/owrtpc/mobile/issues/7). No announcement should
+claim universal OpenWrt compatibility, upstream approval or absence of all
+vulnerabilities. Record the tested firmware/platform scope.
+
 ## Execution order
 
 1. Accept transactional ordering across the API and both mobile platforms
    (implementation and automated checks complete; physical acceptance open).
-2. Complete reproducible Android builds/signing and iOS distribution preparation.
-3. Complete setup/support/privacy surfaces and physical-device acceptance.
-4. Run TestFlight and closed Android testing; resolve release-blocking findings.
-5. Publish compatible core/mobile releases and installation instructions.
+2. Complete security hardening and the standard SDK/OpenWrt conformance gates.
+3. Complete reproducible Android signing and iOS distribution preparation.
+4. Complete setup/support/privacy surfaces and physical-device acceptance.
+5. Run TestFlight and closed Android testing; resolve release-blocking findings.
+6. Repeat release scans, publish compatible signed releases and installation
+   instructions, then promote within the verified support scope.
 
 Core/LuCI can be released before mobile store delivery once its own gates pass.
 Use [DEVELOPMENT.md](DEVELOPMENT.md) for mandatory commit/CI/sign/build ordering.

@@ -326,6 +326,7 @@ assert_eq 4 "$wan_rule_count" 'rules are limited to the monitored Internet devic
 
 printf '%s passed, %s failed\n' "$passed" "$failed"
 [ "$failed" -eq 0 ]
+sh "$PROJECT_DIR/tests/state-security.sh"
 
 if command -v node >/dev/null 2>&1; then
 	node "$PROJECT_DIR/tests/devices.test.js"

@@ -165,9 +165,34 @@ profile_bedtime_value() {
 	profile_period_value "$profile" "$period" "$compatibility_schedule" "$option" "$option" ''
 }
 
+ensure_private_directory() {
+	local directory="$1" metadata
+	[ ! -L "$directory" ] || { log 'refusing a symlinked OWRTPC data directory'; return 1; }
+	if [ ! -e "$directory" ]; then
+		mkdir -m 0700 "$directory" || return 1
+	fi
+	[ -d "$directory" ] || return 1
+	metadata=$(LC_ALL=C ls -nd "$directory") || return 1
+	# Refuse attacker-owned or writable pre-existing directories before chmod
+	# or any state write; tightening a hostile directory would retain its traps.
+	printf '%s\n' "$metadata" | awk -v owner="$(id -u)" '
+		$3 != owner || substr($1, 6, 1) == "w" || substr($1, 9, 1) == "w" { exit 1 }
+	' || { log 'refusing an unsafe OWRTPC data directory'; return 1; }
+	chmod 0700 "$directory" || return 1
+}
+
 ensure_state() {
+	local state_entry directory
 	umask 077
-	mkdir -p "$STATE_DIR" "$PERSIST_DIR"
+	if [ "$PERSIST_DIR" = /etc/owrtpc/state ]; then
+		ensure_private_directory /etc/owrtpc || return 1
+	fi
+	for directory in "$STATE_DIR" "$PERSIST_DIR"; do
+		ensure_private_directory "$directory" || return 1
+		for state_entry in "$directory"/* "$directory"/.[!.]* "$directory"/..?*; do
+			[ ! -L "$state_entry" ] || { log 'refusing a symlinked OWRTPC state entry'; return 1; }
+		done
+	done
 	today=$(date +%F)
 	state_date=''
 	[ -r "$STATE_DIR/date" ] && state_date=$(sed -n '1p' "$STATE_DIR/date")
@@ -182,7 +207,7 @@ ensure_state() {
 }
 
 restore_state() {
-	ensure_state
+	ensure_state || return 1
 	today=$(date +%F)
 	persist_date=''
 	[ -r "$PERSIST_DIR/date" ] && persist_date=$(sed -n '1p' "$PERSIST_DIR/date")
@@ -195,7 +220,7 @@ restore_state() {
 }
 
 checkpoint_state() {
-	ensure_state
+	ensure_state || return 1
 	today=$(date +%F)
 	printf '%s\n' "$today" > "$PERSIST_DIR/date.tmp"
 	mv "$PERSIST_DIR/date.tmp" "$PERSIST_DIR/date"
@@ -550,7 +575,7 @@ resolve_output_device() {
 }
 
 apply_policy() {
-	ensure_state
+	ensure_state || return 1
 	config_load owrtpc
 	config_get_bool engine_enabled main enabled 1
 
@@ -934,8 +959,8 @@ forget_profile() {
 }
 
 initialize() {
-	restore_state
-	ensure_state
+	restore_state || return 1
+	ensure_state || return 1
 	date +%s > "$STATE_DIR/last_sample"
 	apply_policy
 }
@@ -954,7 +979,7 @@ owrtpc_lock "$OWRTPC_ENGINE_LOCK" || exit 1
 trap 'rmdir "$OWRTPC_ENGINE_LOCK"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-ensure_state
+ensure_state || exit 1
 
 case "${1:-}" in
 	apply) apply_policy ;;
