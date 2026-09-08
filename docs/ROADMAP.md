@@ -11,9 +11,10 @@ passing CI run or a local signed installation does not close device/store gates.
 - The [mobile source release](https://github.com/owrtpc/mobile/releases/tag/0.1.0-r1)
   has no installable Android/iOS artifact. Current source includes transactional
   profile editing, creation and deletion beyond that tag.
-- M0–M2 foundations are implemented; cross-platform acceptance remains open.
-- M3 functionality, including ordering, is implemented. Physical acceptance is
-  still open. M4 covers public delivery.
+- M0–M2 foundations are implemented. M3, including profile management and
+  ordering, was explicitly accepted by the owner on 2026-09-08.
+- M3 is closed in both repositories. Remaining physical-device release,
+  accessibility and security checks belong to M4 and retain their recorded status.
 - Core/LuCI 0.4.0-r3 signed packages have passed all four Docker lifecycle modes
   and are uploaded to a draft release. Physical acceptance and publication remain
   open in core issue 3.
@@ -30,12 +31,12 @@ passing CI run or a local signed installation does not close device/store gates.
 
 | Milestone | Core | Mobile | Completion evidence |
 | --- | --- | --- | --- |
-| M3: complete profile management | [Transactional ordering](https://github.com/owrtpc/core/issues/1) | [Ordering UI and verification](https://github.com/owrtpc/mobile/issues/1), [device acceptance](https://github.com/owrtpc/mobile/issues/2) | Automated transaction/conflict tests plus recorded iOS/Android/router acceptance |
-| M4: public release | [Setup/support docs](https://github.com/owrtpc/core/issues/2), [signed release](https://github.com/owrtpc/core/issues/3) | [Android builds](https://github.com/owrtpc/mobile/issues/3), [support/privacy](https://github.com/owrtpc/mobile/issues/4), [TestFlight/App Store](https://github.com/owrtpc/mobile/issues/5), [Android beta/public delivery](https://github.com/owrtpc/mobile/issues/6) | Installable signed artifacts, completed release checklist, beta results and public download/setup links |
+| M3: complete profile management — accepted | [Transactional ordering](https://github.com/owrtpc/core/issues/1) | [Ordering UI and verification](https://github.com/owrtpc/mobile/issues/1) | Owner acceptance on 2026-09-08; implementation and automated transaction/conflict tests complete |
+| M4: public release | [Setup/support docs](https://github.com/owrtpc/core/issues/2), [signed release](https://github.com/owrtpc/core/issues/3) | [Device release checks](https://github.com/owrtpc/mobile/issues/2), [Android builds](https://github.com/owrtpc/mobile/issues/3), [support/privacy](https://github.com/owrtpc/mobile/issues/4), [TestFlight/App Store](https://github.com/owrtpc/mobile/issues/5), [Android beta/public delivery](https://github.com/owrtpc/mobile/issues/6) | Installable signed artifacts, completed release checklist, beta results and public download/setup links |
 
 Milestones: [core](https://github.com/owrtpc/core/milestones) and
 [mobile](https://github.com/owrtpc/mobile/milestones). Issue checklists track
-remaining acceptance; neither milestone has a committed delivery date.
+remaining M4 release checks; M4 has no committed delivery date.
 
 Security and OpenWrt conformance are explicit promotion gates:
 [core review](https://github.com/owrtpc/core/issues/4) and
@@ -45,8 +46,7 @@ vulnerabilities. Record the tested firmware/platform scope.
 
 ## Execution order
 
-1. Accept transactional ordering across the API and both mobile platforms
-   (implementation and automated checks complete; physical acceptance open).
+1. M3 profile management and ordering: accepted by the owner on 2026-09-08.
 2. Complete security hardening and the standard SDK/OpenWrt conformance gates.
 3. Complete reproducible Android signing and iOS distribution preparation.
 4. Complete setup/support/privacy surfaces and physical-device acceptance.
