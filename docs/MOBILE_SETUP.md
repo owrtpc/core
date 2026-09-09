@@ -30,6 +30,12 @@ when needed. Do not enter a LuCI page URL. The app uses `/ubus` itself.
 Connect the phone to a network permitted to reach that listener and grant the
 app local-network access when the operating system requests it.
 
+Outside home, first establish an external VPN that can reach this HTTPS
+listener. Follow [access through WireGuard or Tailscale](MOBILE_VPN.md).
+OWRTPC does not configure or activate VPNs. VPN access still requires HTTPS,
+certificate verification and a router account; a connected tunnel alone is
+not evidence that the router service is reachable.
+
 Software and hardware flow offloading must both be disabled for OWRTPC traffic
 accounting. In LuCI, inspect **Network > Firewall > General Settings**. Firmware
 with a separate acceleration feature requires its vendor-specific check too.

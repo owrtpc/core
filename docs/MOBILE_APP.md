@@ -13,9 +13,9 @@ commitment.
 
 OWRTPC Mobile is a small, trustworthy companion for a parent who needs to see
 the state of their profiles and make a deliberate change without opening LuCI.
-It connects directly to one OpenWrt router on the current local network. The
-router remains the source of truth for configuration, accounting, quotas and
-enforcement.
+It connects over HTTPS to one OpenWrt router, on the local network or through
+an externally configured, working VPN. The router remains the source of truth
+for configuration, accounting, quotas and enforcement.
 
 The first release must be:
 
@@ -46,10 +46,13 @@ nor duplicates the policy engine.
    follows the device language by default and permits a local manual override.
 10. Offer one appearance control cycling through Automatic, Light and Dark;
     Automatic follows the current device appearance and is the default.
+11. Document access through an existing VPN and verify HTTPS connectivity on
+    both mobile platforms without implementing VPN functionality.
 
 ### Explicitly deferred
 
-- remote access, VPN selection, relay services and cloud accounts;
+- VPN implementation, provisioning, activation, detection/selection wizards,
+  relay services and OWRTPC cloud accounts;
 - notifications, background polling and widgets;
 - more than one saved router;
 - web filtering, content inspection or changes to the policy algorithm;
@@ -59,8 +62,27 @@ nor duplicates the policy engine.
 - full OWRTPC data reset from the mobile app.
 
 The full reset API remains available to other authenticated clients, but it is
-excluded from V1 because a local-network companion does not yet provide backup
+excluded from V1 because the companion does not yet provide backup
 or recovery workflows appropriate to that destructive action.
+
+### External VPN boundary (owner decision, 2026-09-09)
+
+WireGuard on OpenWrt is the first documented option; Tailscale is an optional
+alternative when direct connectivity is impractical. Setup and troubleshooting
+belong to the user or network administrator, outside OWRTPC. See
+[the external VPN guide](MOBILE_VPN.md).
+
+OWRTPC does not install VPN packages, create keys or tunnels, change routes,
+DNS or firewall rules, manage provider accounts, or start another app. No VPN
+SDK, native VPN extension or VPN permissions are added. Flutter remains the
+shared application framework. The previous proposed automatic remote-access
+wizard is not part of the approved scope.
+
+The phone's environment must already provide access to the router's HTTPS
+endpoint. That may require an external VPN client; OWRTPC does not promise a
+client-free VPN. Its responsibility is normal HTTPS access, certificate
+verification, authentication and safe recovery from connection loss. A VPN
+status indicator alone does not prove that the endpoint is reachable.
 
 ## Product principles
 
@@ -138,8 +160,8 @@ flowchart TD
 
 The connection flow asks only for information needed at that step:
 
-1. Explain that OWRTPC works directly over the local network and does not use a
-   cloud service.
+1. Explain that OWRTPC connects to the router over the local network or an
+   externally configured VPN and requires no OWRTPC cloud account.
 2. Request the operating-system local-network permission in context. If it is
    denied, keep manual guidance and a link to system settings available.
 3. Accept a host name or IP address and optional port. Normalize it to an HTTPS
@@ -604,6 +626,10 @@ this product specification.
 - self-signed certificate renewal and unexpected certificate replacement;
 - read-only and write-capable OWRTPC accounts;
 - installation without GL.iNet packages and with optional discovery unavailable.
+- external VPN access on physical iOS and Android phones with home Wi-Fi off:
+  login, reads, verified writes, tunnel loss/reconnection and unchanged TLS
+  enforcement; record WireGuard and optional Tailscale results separately using
+  [the VPN acceptance matrix](MOBILE_VPN.md#release-verification).
 
 ## Delivery roadmap
 
@@ -691,7 +717,7 @@ known high-severity security or accessibility issue.
 ## Adopted choices and outstanding distribution decisions
 
 The repositories already implement Flutter, HTTPS-only connections with scoped
-certificate pairing, English/Italian localization and a local single-router
+certificate pairing, English/Italian localization and a single-router
 companion. Full reset, multiple saved routers and notifications remain outside
 V1. Both iOS and Android are product targets.
 

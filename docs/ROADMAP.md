@@ -1,6 +1,6 @@
 # Public release roadmap
 
-Updated 2026-09-08. Implementation and release acceptance are separate: a
+Updated 2026-09-09. Implementation and release acceptance are separate: a
 passing CI run or a local signed installation does not close device/store gates.
 
 ## Current baseline
@@ -79,7 +79,15 @@ because shared Flutter checks passed.
 restricted accounts, flow offloading and feature-based compatibility. Release
 publication must also supply the final download links and device acceptance record.
 
-V1 remains one local router, English/Italian and no cloud. Notifications,
+The owner decision on 2026-09-09 limits VPN work to documentation and app
+connectivity verification over an externally configured tunnel. WireGuard is
+the first documented option, with Tailscale as an optional alternative. VPN
+implementation, automatic setup/selection and native VPN integration are out
+of scope. The [guide and pending iOS/Android matrix](MOBILE_VPN.md) track this
+M4 connectivity gate; ordinary HTTPS tests do not close real VPN acceptance.
+
+V1 remains one router, English/Italian and no OWRTPC cloud. The router may be
+reachable locally or through an external VPN. Notifications,
 multi-router support and history remain deferred. An OpenWrt feed is not
 required; optional F-Droid or signed GitHub Android distribution needs a recorded
 owner decision.
