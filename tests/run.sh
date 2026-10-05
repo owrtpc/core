@@ -101,6 +101,43 @@ assert_eq 0 "$(get_used isolated_profile)" 'an isolated heavy background burst n
 
 clear_device_activity AA:BB:CC:DD:EE:01
 write_counters 262144
+SAMPLE_NOW=1800
+sample_device AA:BB:CC:DD:EE:01 periodic_profile
+write_counters 0
+for SAMPLE_NOW in 1860 1920 1980; do
+	sample_device AA:BB:CC:DD:EE:01 periodic_profile
+done
+assert_eq 0 "$(activity_read AA:BB:CC:DD:EE:01 candidate_started)" 'a silent candidate expires at the idle timeout'
+write_counters 262144
+SAMPLE_NOW=2040
+sample_device AA:BB:CC:DD:EE:01 periodic_profile
+assert_eq 0 "$(get_used periodic_profile)" 'periodic background bursts do not charge the silent interval between them'
+SAMPLE_NOW=2100
+sample_device AA:BB:CC:DD:EE:01 periodic_profile
+assert_eq 120 "$(get_used periodic_profile)" 'adjacent bursts after candidate expiry count only the new session'
+
+clear_device_activity AA:BB:CC:DD:EE:01
+SAMPLE_NOW=2200
+sample_device AA:BB:CC:DD:EE:01 buffered_candidate
+write_counters 0
+SAMPLE_NOW=2260
+sample_device AA:BB:CC:DD:EE:01 buffered_candidate
+write_counters 262144
+SAMPLE_NOW=2320
+sample_device AA:BB:CC:DD:EE:01 buffered_candidate
+assert_eq 180 "$(get_used buffered_candidate)" 'a short candidate buffering gap still counts when traffic resumes'
+
+clear_device_activity AA:BB:CC:DD:EE:01
+SAMPLE_NOW=2400
+sample_device AA:BB:CC:DD:EE:01 clock_candidate
+SAMPLE_NOW=2340
+sample_device AA:BB:CC:DD:EE:01 clock_candidate
+assert_eq 0 "$(get_used clock_candidate)" 'a clock moving backwards cannot confirm an older candidate'
+# Restore the shared device fixture for the checkpoint assertions below.
+set_device_used AA:BB:CC:DD:EE:01 240
+
+clear_device_activity AA:BB:CC:DD:EE:01
+write_counters 262144
 TEST_DAILY_MINUTES=0
 config_get_bool() {
 	variable="$1"; option="$3"
@@ -327,6 +364,7 @@ assert_eq 4 "$wan_rule_count" 'rules are limited to the monitored Internet devic
 printf '%s passed, %s failed\n' "$passed" "$failed"
 [ "$failed" -eq 0 ]
 sh "$PROJECT_DIR/tests/state-security.sh"
+sh "$PROJECT_DIR/tests/pipe-lock.sh"
 
 if command -v node >/dev/null 2>&1; then
 	node "$PROJECT_DIR/tests/devices.test.js"

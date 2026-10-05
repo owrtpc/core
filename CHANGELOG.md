@@ -6,6 +6,17 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0-r7] - 2026-10-05
+
+### Fixed
+
+- Expire unconfirmed activity candidates at the same idle timeout as active
+  sessions, preventing periodic background bursts from charging the intervening
+  silent minutes. Discard candidates when the clock moves backwards. Preserve
+  short buffering gaps and per-device cumulative accounting.
+- Release the engine lock when CLI output is interrupted by a closed pipe,
+  so a truncated diagnostic read cannot stop subsequent usage sampling.
+
 ## [0.4.0-r6] - 2026-09-08
 
 ### Added

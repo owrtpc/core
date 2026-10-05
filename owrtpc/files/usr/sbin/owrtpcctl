@@ -757,7 +757,7 @@ sample_device() {
 	fi
 
 	age=$((SAMPLE_NOW - candidate_started))
-	if [ "$age" -ge "$ACTIVITY_CONFIRM_WINDOW" ]; then
+	if [ "$age" -lt 0 ] || [ "$age" -ge "$ACTIVITY_CONFIRM_WINDOW" ]; then
 		clear_device_activity "$mac"
 		[ "$significant" -eq 0 ] || start_activity_candidate "$mac" "$profile" "$bytes"
 		return
@@ -771,7 +771,18 @@ sample_device() {
 		activity_write "$mac" active 1
 		activity_log "activity started profile=$profile device=$mac accounted_seconds=$candidate_elapsed bytes=$bytes"
 	else
-		activity_write "$mac" candidate_elapsed "$candidate_elapsed"
+		# A candidate must obey the same silence limit as a confirmed
+		# session. Otherwise periodic standby bursts can confirm and charge
+		# several minutes during which the device transferred no meaningful
+		# traffic, even after an active session would have expired.
+		quiet_elapsed=$(activity_read "$mac" quiet_elapsed)
+		quiet_elapsed=$((quiet_elapsed + SAMPLE_ELAPSED))
+		if [ "$quiet_elapsed" -ge "$ACTIVITY_IDLE_TIMEOUT" ]; then
+			clear_device_activity "$mac"
+		else
+			activity_write "$mac" quiet_elapsed "$quiet_elapsed"
+			activity_write "$mac" candidate_elapsed "$candidate_elapsed"
+		fi
 	fi
 }
 
@@ -979,6 +990,7 @@ owrtpc_lock "$OWRTPC_ENGINE_LOCK" || exit 1
 trap 'rmdir "$OWRTPC_ENGINE_LOCK"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+trap 'exit 141' PIPE
 ensure_state || exit 1
 
 case "${1:-}" in

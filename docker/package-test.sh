@@ -9,6 +9,11 @@ backend=/packages/owrtpc-$version-r$release.apk
 frontend=/packages/luci-app-owrtpc-$version-r$release.apk
 legacy=/legacy/luci-app-owrtpc-0.1.0_alpha1-r20.apk
 [ -f /.dockerenv ] || { echo 'Docker only' >&2; exit 1; }
+if [ "$mode" = clean ]; then
+	# Exercise session accounting and interrupted CLI output in BusyBox ash,
+	# whose signal/EXIT behavior differs from host-side shells.
+	sh /project/tests/run.sh
+fi
 # Fail early if the host cannot exercise the real firewall (e.g. QEMU user mode).
 nft list tables >/dev/null
 mkdir -p /tmp/lock /tmp/log /var/run/ubus
@@ -78,6 +83,9 @@ else
 	fi
 fi
 apk --allow-untrusted add "$backend"
+if [ "$mode" = clean ]; then
+	OWRTPC_TEST_CTL_SOURCE=/usr/sbin/owrtpcctl sh /project/tests/pipe-lock.sh
+fi
 [ ! -x /etc/uci-defaults/90-owrtpc ] || /etc/uci-defaults/90-owrtpc
 apk info --who-owns /usr/sbin/owrtpcctl | grep -q 'owrtpc-'
 apk info --who-owns /usr/libexec/rpcd/owrtpc | grep -q 'owrtpc-'

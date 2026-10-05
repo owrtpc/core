@@ -57,9 +57,12 @@ in the OWRTPC nftables table. Session detection runs only for enabled profiles
 whose current Monday–Thursday or Friday–Sunday allowance is finite. A first interval reaching
 the profile threshold (or the global 128 KiB default) creates a candidate; a
 second event within five minutes confirms the session and accounts the pending
-elapsed time. While active, quiet intervals remain provisional for three
-minutes and are committed only if traffic resumes, which tolerates buffering
-without charging the final idle tail. Unlimited profiles clear and skip all
+elapsed time. Candidates also expire after three minutes of quiet samples, so
+widely spaced background bursts cannot confirm a session across a silent gap.
+A clock moving backwards discards the old candidate. While active, quiet
+intervals remain provisional for three minutes and are committed only if
+traffic resumes, which tolerates buffering without charging the final idle
+tail. Unlimited profiles clear and skip all
 per-device activity state. Activity remains a traffic-volume heuristic because
 a router cannot observe a generic device's physical power or display state.
 
