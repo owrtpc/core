@@ -6,6 +6,15 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0-r8] - 2026-10-22
+
+### Changed
+
+- Separate daily allowance and scheduled down time in the LuCI profile editor,
+  with compact, distinct overview columns and an advanced detection section.
+- Rename visible bedtime labels to down time, including daytime scheduling
+  guidance, while retaining existing UCI/RPC keys and enforcement behavior.
+
 ## [0.4.0-r7] - 2026-10-05
 
 ### Fixed

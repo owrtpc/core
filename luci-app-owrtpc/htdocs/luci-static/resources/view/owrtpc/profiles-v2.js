@@ -31,7 +31,7 @@ function formatDuration(seconds) {
 function reasonLabel(reason) {
 	return ({
 		none: _('Allowed'), disabled: _('Profile disabled'), manual: _('Manually blocked'),
-		bedtime: _('Bedtime'), quota: _('Daily allowance exhausted')
+		bedtime: _('Down time'), quota: _('Daily allowance exhausted')
 	})[reason] || reason;
 }
 
@@ -331,21 +331,8 @@ return view.extend({
 			return rows.length ? E('div', {}, rows) : E('em', {}, _('none'));
 		};
 
-		o = s.option(form.ListValue, 'activity_threshold_bytes', _('Activity detection'));
-		o.value('', _('Use engine default'));
-		o.value('32768', _('Sensitive (32 KiB/sample)'));
-		o.value('131072', _('Standard (128 KiB/sample)'));
-		o.value('262144', _('Low sensitivity (256 KiB/sample)'));
-		o.rmempty = true;
-		o.modalonly = true;
-		o.description = _('Advanced fallback for unusually noisy or quiet profiles. Automatic session detection normally handles standby traffic and buffering gaps.');
-
-		o = s.option(form.DummyValue, '_allowance_period', _('Today\'s allowance group'));
-		o.cfgvalue = function(sectionId) {
-			return status[sectionId] && status[sectionId].allowance_period === 'fri_sun'
-				? _('Friday–Sunday') : _('Monday–Thursday');
-		};
-		o = s.option(form.DummyValue, '_allowance', _('Today\'s allowance'));
+		o = s.option(form.DummyValue, '_allowance', _('Daily time'));
+		o.modalonly = false;
 		o.cfgvalue = function(sectionId) {
 			var profileStatus = status[sectionId] || {};
 			var period = profileStatus.allowance_period || 'mon_thu';
@@ -357,15 +344,41 @@ return view.extend({
 			var bonus = Number(profileStatus.bonus_seconds) || 0;
 			return bonus ? _('%s (temporary extension active)').format(label) : label;
 		};
-		o = s.option(form.DummyValue, '_bedtime', _('Today\'s bedtime'));
+
+		o.textvalue = function(sectionId) {
+			var profile = status[sectionId];
+			return E('div', {}, [
+				E('strong', {}, [ this.cfgvalue(sectionId) ]),
+				E('div', {}, [ profile ? _('Used: %s').format(formatDuration(profile.used_seconds)) : '—' ]),
+				E('div', {}, [ profile ? _('Remaining: %s').format(profile.all_day === true || !profile.limit_seconds
+					? _('Unlimited') : formatDuration(profile.remaining_seconds)) : '—' ])
+			]);
+		};
+		o = s.option(form.DummyValue, '_bedtime', _('Down time'));
+		o.modalonly = false;
 		o.cfgvalue = function(sectionId) {
 			var period = status[sectionId] ? status[sectionId].bedtime_period : 'sun_thu';
 			var compatibilitySchedule = period === 'fri_sat' ? 'weekend' : 'weekday';
 			var start = periodValue(sectionId, period, compatibilitySchedule, 'bedtime_start', 'bedtime_start', '');
 			var end = periodValue(sectionId, period, compatibilitySchedule, 'bedtime_end', 'bedtime_end', '');
-			var group = period === 'fri_sat' ? _('Friday–Saturday nights') : _('Sunday–Thursday nights');
+			var group = period === 'fri_sat' ? _('Friday–Saturday') : _('Sunday–Thursday');
 			return start && end ? _('%s–%s (%s)').format(start, end, group) : _('Disabled (%s)').format(group);
 		};
+
+		// Native form fields keep their UCI names; only presentation changes.
+		function addHeading(name, icon, title, description) {
+			var heading = s.option(form.DummyValue, name);
+			heading.modalonly = true;
+			heading.render = function() {
+				return E('div', { 'class': 'cbi-section-descr', 'style': 'border-top:1px solid var(--border-color, #ccc);padding-top:1em;margin-top:1.5em' }, [
+					E('h4', {}, [ E('span', { 'aria-hidden': 'true' }, [ icon + ' ' ]), title ]),
+					E('p', {}, [ description ])
+				]);
+			};
+		}
+
+		addHeading('_daily_heading', '◷', _('Daily time'),
+			_('Set a daily budget shared by the profile devices. Extra time does not override down time.'));
 
 		o = s.option(form.Value, 'mon_thu_daily_minutes', _('Allowance Monday–Thursday (minutes)'));
 		o.datatype = 'uinteger';
@@ -382,40 +395,45 @@ return view.extend({
 		o.description = _('Friday through Sunday. Cumulative across the profile devices; use 0 for unlimited.');
 		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'fri_sun', 'weekend', 'daily_minutes', 'daily_minutes', '0'); };
 
-		o = s.option(form.Value, 'sun_thu_bedtime_start', _('Bedtime Sunday–Thursday starts'));
+		addHeading('_downtime_heading', 'Ⅱ', _('Down time'),
+			_('Suspend Internet access at scheduled times, even when daily time remains. A window may be during the day or cross midnight.'));
+
+		o = s.option(form.Value, 'sun_thu_bedtime_start', _('Sunday–Thursday: start'));
 		o.placeholder = '21:30';
 		o.modalonly = true;
-		o.description = _('The day identifies the evening when bedtime starts. Router local time; leave both Sunday–Thursday fields empty to disable.');
+		o.description = _('The day identifies when down time starts. Router local time; leave both Sunday–Thursday fields empty to disable.');
 		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'sun_thu', 'weekday', 'bedtime_start', 'bedtime_start', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '21:30'); };
-		o = s.option(form.Value, 'sun_thu_bedtime_end', _('Bedtime Sunday–Thursday ends'));
+		o = s.option(form.Value, 'sun_thu_bedtime_end', _('Sunday–Thursday: end'));
 		o.placeholder = '07:00';
 		o.modalonly = true;
 		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'sun_thu', 'weekday', 'bedtime_end', 'bedtime_end', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '07:00'); };
-		o = s.option(form.Value, 'fri_sat_bedtime_start', _('Bedtime Friday–Saturday starts'));
+		o = s.option(form.Value, 'fri_sat_bedtime_start', _('Friday–Saturday: start'));
 		o.placeholder = '23:00';
 		o.modalonly = true;
-		o.description = _('The day identifies the evening when bedtime starts. Router local time; leave both Friday–Saturday fields empty to disable.');
+		o.description = _('The day identifies when down time starts. Router local time; leave both Friday–Saturday fields empty to disable.');
 		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'fri_sat', 'weekend', 'bedtime_start', 'bedtime_start', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '23:00'); };
-		o = s.option(form.Value, 'fri_sat_bedtime_end', _('Bedtime Friday–Saturday ends'));
+		o = s.option(form.Value, 'fri_sat_bedtime_end', _('Friday–Saturday: end'));
 		o.placeholder = '09:00';
 		o.modalonly = true;
 		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'fri_sat', 'weekend', 'bedtime_end', 'bedtime_end', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '09:00'); };
 
-		o = s.option(form.DummyValue, '_usage', _('Used today'));
-		o.cfgvalue = function(sectionId) { return status[sectionId] ? formatDuration(status[sectionId].used_seconds) : '—'; };
-		o = s.option(form.DummyValue, '_remaining', _('Remaining'));
-		o.cfgvalue = function(sectionId) {
-			if (!status[sectionId])
-				return '—';
-			if (status[sectionId].all_day === true)
-				return _('Unlimited today');
-			return status[sectionId].limit_seconds ? formatDuration(status[sectionId].remaining_seconds) : _('Unlimited');
-		};
+		addHeading('_advanced_heading', '⚙', _('Advanced'),
+			_('Adjust activity detection only if the default does not suit this profile.'));
+		o = s.option(form.ListValue, 'activity_threshold_bytes', _('Activity detection'));
+		o.value('', _('Use engine default'));
+		o.value('32768', _('Sensitive (32 KiB/sample)'));
+		o.value('131072', _('Standard (128 KiB/sample)'));
+		o.value('262144', _('Low sensitivity (256 KiB/sample)'));
+		o.rmempty = true;
+		o.modalonly = true;
+		o.description = _('Advanced fallback for unusually noisy or quiet profiles. Automatic session detection normally handles standby traffic and buffering gaps.');
+
 		o = s.option(form.DummyValue, '_state', _('State'));
+		o.modalonly = false;
 		o.cfgvalue = function(sectionId) { return reasonLabel(status[sectionId] ? status[sectionId].reason : 'none'); };
 
 		var gridSection = s;
@@ -426,7 +444,7 @@ return view.extend({
 			var isEnabled = uci.get('owrtpc', sectionId, 'enabled') !== '0';
 			var isBlocked = profile.manual_blocked === true;
 			var timeActionsDisabled = !isEnabled || isBlocked || profile.reason === 'bedtime';
-			var disabledTitle = profile.reason === 'bedtime' ? _('Extra time is unavailable during bedtime') :
+			var disabledTitle = profile.reason === 'bedtime' ? _('Extra time is unavailable during down time') :
 				isBlocked ? _('Unblock the profile before adding extra time') :
 				_('Enable the profile before adding extra time');
 			var timeChoices = {
@@ -440,7 +458,7 @@ return view.extend({
 				var isAllDay = value === 'all-day';
 				var label = timeChoices[value];
 				var successMessage = isAllDay ?
-					_('Profile "%s" has unlimited time until bedtime or the end of today.').format(profileName) :
+					_('Profile "%s" has unlimited time until down time or the end of today.').format(profileName) :
 					_('Extra time for profile "%s" set to %s.').format(profileName, label.substring(1));
 				return runQuickAction(control, callAddTime(sectionId, value), successMessage);
 			};

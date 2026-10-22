@@ -1,7 +1,7 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:356
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:343
 msgid "%d min"
 msgstr ""
 
@@ -17,11 +17,11 @@ msgstr ""
 msgid "%dm"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:358
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:345
 msgid "%s (temporary extension active)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:367
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:365
 msgid "%s–%s (%s)"
 msgstr ""
 
@@ -31,7 +31,7 @@ msgid ""
 "network on the client."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:334
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:426
 msgid "Activity detection"
 msgstr ""
 
@@ -39,7 +39,7 @@ msgstr ""
 msgid "Activity threshold per sample (bytes)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:459
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:477
 msgid "Add time to this profile"
 msgstr ""
 
@@ -47,21 +47,30 @@ msgstr ""
 msgid "Additional output devices"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:341
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:425
+msgid ""
+"Adjust activity detection only if the default does not suit this profile."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:424
+msgid "Advanced"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:433
 msgid ""
 "Advanced fallback for unusually noisy or quiet profiles. Automatic session "
 "detection normally handles standby traffic and buffering gaps."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:435
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:453
 msgid "All Day"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:377
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:390
 msgid "Allowance Friday–Sunday (minutes)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:370
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:383
 msgid "Allowance Monday–Thursday (minutes)"
 msgstr ""
 
@@ -69,7 +78,7 @@ msgstr ""
 msgid "Allowed"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:529
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:547
 msgid "Apache-2.0 licence"
 msgstr ""
 
@@ -77,31 +86,11 @@ msgstr ""
 msgid "Apply or discard pending OWRTPC changes before resetting."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:34
-msgid "Bedtime"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:402
-msgid "Bedtime Friday–Saturday ends"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:396
-msgid "Bedtime Friday–Saturday starts"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:391
-msgid "Bedtime Sunday–Thursday ends"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:385
-msgid "Bedtime Sunday–Thursday starts"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:497
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:515
 msgid "Block"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:489
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:507
 msgid "Block this profile immediately"
 msgstr ""
 
@@ -121,19 +110,24 @@ msgstr ""
 msgid "Daily allowance exhausted"
 msgstr ""
 
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:334
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:380
+msgid "Daily time"
+msgstr ""
+
 #: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:271
 msgid ""
 "Daily time belongs to a profile and is cumulative across all of its devices. "
 "Two active devices consume twice as fast."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:512
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:530
 msgid ""
 "Delete all OWRTPC data and restore its default settings. This does not reset "
 "the router."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:521
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:539
 msgid "Developed by Fabrizio Pellegrini and OWRTPC contributors."
 msgstr ""
 
@@ -141,23 +135,29 @@ msgstr ""
 msgid "Devices"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:483
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:501
 msgid "Disable"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:477
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:495
 msgid "Disable this profile"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:367
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:365
 msgid "Disabled (%s)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:423
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:34
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:357
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:398
+msgid "Down time"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:441
 msgid "Edit"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:483
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:501
 msgid "Enable"
 msgstr ""
 
@@ -165,15 +165,15 @@ msgstr ""
 msgid "Enable OWRTPC"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:431
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:449
 msgid "Enable the profile before adding extra time"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:488
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:506
 msgid "Enable the profile before changing its block state"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:477
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:495
 msgid "Enable this profile"
 msgstr ""
 
@@ -189,33 +189,37 @@ msgstr ""
 msgid "Existing backups and system logs are not deleted."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:444
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:462
 msgid "Extra time for profile \"%s\" set to %s."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:429
-msgid "Extra time is unavailable during bedtime"
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:447
+msgid "Extra time is unavailable during down time"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:520
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:538
 msgid "Free software. Local control."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:382
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:395
 msgid ""
 "Friday through Sunday. Cumulative across the profile devices; use 0 for "
 "unlimited."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:366
-msgid "Friday–Saturday nights"
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:364
+msgid "Friday–Saturday"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:346
-msgid "Friday–Sunday"
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:418
+msgid "Friday–Saturday: end"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:530
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:412
+msgid "Friday–Saturday: start"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:548
 msgid "Independent project, not affiliated with OpenWrt."
 msgstr ""
 
@@ -234,7 +238,7 @@ msgid ""
 "power loss."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:338
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:430
 msgid "Low sensitivity (256 KiB/sample)"
 msgstr ""
 
@@ -242,14 +246,10 @@ msgstr ""
 msgid "Manually blocked"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:375
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:388
 msgid ""
 "Monday through Thursday. Cumulative across the profile devices; use 0 for "
 "unlimited."
-msgstr ""
-
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:346
-msgid "Monday–Thursday"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:307
@@ -260,7 +260,7 @@ msgstr ""
 msgid "OWRTPC Parental Control"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:519
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:537
 msgid "OWRTPC core version %s"
 msgstr ""
 
@@ -280,7 +280,7 @@ msgid ""
 "and other services are not reset."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:531
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:549
 msgid ""
 "OpenWrt is a registered trademark of Software Freedom Conservancy (SFC)."
 msgstr ""
@@ -299,23 +299,23 @@ msgstr ""
 msgid "Please wait while OWRTPC resets its data and restarts."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:495
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:513
 msgid "Profile \"%s\" blocked."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:481
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:499
 msgid "Profile \"%s\" disabled."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:481
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:499
 msgid "Profile \"%s\" enabled."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:443
-msgid "Profile \"%s\" has unlimited time until bedtime or the end of today."
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:461
+msgid "Profile \"%s\" has unlimited time until down time or the end of today."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:495
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:513
 msgid "Profile \"%s\" unblocked."
 msgstr ""
 
@@ -327,20 +327,20 @@ msgstr ""
 msgid "Profiles"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:410
-msgid "Remaining"
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:353
+msgid "Remaining: %s"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:489
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:507
 msgid "Remove the manual block"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:511
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:529
 msgid "Reset OWRTPC"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:213
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:517
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:535
 msgid "Reset all OWRTPC data"
 msgstr ""
 
@@ -372,19 +372,25 @@ msgstr ""
 msgid "Search by name, IP or MAC"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:336
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:428
 msgid "Sensitive (32 KiB/sample)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:527
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:381
+msgid ""
+"Set a daily budget shared by the profile devices. Extra time does not "
+"override down time."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:545
 msgid "Source code"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:337
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:429
 msgid "Standard (128 KiB/sample)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:418
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:435
 msgid "State"
 msgstr ""
 
@@ -392,24 +398,38 @@ msgstr ""
 msgid "State checkpoint (seconds)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:366
-msgid "Sunday–Thursday nights"
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:364
+msgid "Sunday–Thursday"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:524
-msgid "Thanks to the OpenWrt and LuCI communities."
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:407
+msgid "Sunday–Thursday: end"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:401
+msgid "Sunday–Thursday: start"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:399
 msgid ""
-"The day identifies the evening when bedtime starts. Router local time; leave "
-"both Friday–Saturday fields empty to disable."
+"Suspend Internet access at scheduled times, even when daily time remains. A "
+"window may be during the day or cross midnight."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:388
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:542
+msgid "Thanks to the OpenWrt and LuCI communities."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:415
 msgid ""
-"The day identifies the evening when bedtime starts. Router local time; leave "
-"both Sunday–Thursday fields empty to disable."
+"The day identifies when down time starts. Router local time; leave both "
+"Friday–Saturday fields empty to disable."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:404
+msgid ""
+"The day identifies when down time starts. Router local time; leave both "
+"Sunday–Thursday fields empty to disable."
 msgstr ""
 
 #: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:165
@@ -429,18 +449,6 @@ msgid ""
 "edits on this page will be discarded."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:348
-msgid "Today's allowance"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:343
-msgid "Today's allowance group"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:360
-msgid "Today's bedtime"
-msgstr ""
-
 #: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:287
 msgid ""
 "Traffic below this threshold is treated as standby activity. The default is "
@@ -452,21 +460,20 @@ msgstr ""
 msgid "Type RESET OWRTPC to confirm"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:497
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:515
 msgid "Unblock"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:430
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:448
 msgid "Unblock the profile before adding extra time"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:356
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:416
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:343
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:354
 msgid "Unlimited"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:355
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:415
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:342
 msgid "Unlimited today"
 msgstr ""
 
@@ -474,12 +481,12 @@ msgstr ""
 msgid "Use HH:MM, for example %s."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:335
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:427
 msgid "Use engine default"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:408
-msgid "Used today"
+#: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:352
+msgid "Used: %s"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/owrtpc/profiles-v2.js:278
