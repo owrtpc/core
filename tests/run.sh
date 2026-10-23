@@ -175,7 +175,7 @@ config_list_foreach() { :; }
 
 config_get_bool() {
 	variable="$1"; section="$2"; option="$3"; default="$4"
-	case "$option" in enabled) value="${TEST_PROFILE_ENABLED:-1}" ;; blocked) value=0 ;; *) value="$default" ;; esac
+	case "$option" in downtime_enabled) value="${TEST_DOWNTIME_ENABLED:-1}" ;; enabled) value="${TEST_PROFILE_ENABLED:-1}" ;; blocked) value="${TEST_MANUAL_BLOCKED:-0}" ;; *) value="$default" ;; esac
 	eval "$variable=\$value"
 }
 config_get() {
@@ -237,6 +237,19 @@ export OWRTPC_NOW_HHMM=22:00
 export OWRTPC_DAY_OF_WEEK=7
 assert_eq sun_thu "$(profile_bedtime_period children)" 'Sunday evening selects the Sunday-Thursday bedtime group'
 assert_eq bedtime "$(profile_reason children)" 'Sunday evening uses school-night bedtime hours'
+TEST_DOWNTIME_ENABLED=0
+set_used children 300
+assert_eq quota "$(profile_reason children)" 'disabled down time still enforces the daily budget'
+assert_eq 21:30 "$(profile_bedtime_value children sun_thu bedtime_start)" 'disabled down time preserves saved hours'
+set_used children 0
+assert_eq none "$(profile_reason children)" 'disabled down time allows access when budget remains'
+TEST_MANUAL_BLOCKED=1
+assert_eq manual "$(profile_reason children)" 'disabled down time does not bypass manual blocks'
+TEST_MANUAL_BLOCKED=0
+TEST_DOWNTIME_ENABLED=1
+assert_eq bedtime "$(profile_reason children)" 're-enabled down time enforces preserved hours'
+set_used children 180
+
 export OWRTPC_DAY_OF_WEEK=5
 assert_eq none "$(profile_reason children)" 'Friday evening stays allowed until the later bedtime'
 

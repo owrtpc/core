@@ -224,3 +224,13 @@ normally already has that bridge. OWRTPC does not install or expose it just to
 prepare for mobile, and does not configure remote connectivity. The mobile app
 must complete its secure credential and certificate-pairing spike before live
 authentication is considered production-ready.
+
+### Optional down time in LuCI
+
+The per-profile UCI flag `downtime_enabled=0` ignores scheduled pauses while
+retaining their stored hours. Missing flags retain the previous behavior. Daily
+allowance and manual blocks still apply. Edit snapshots expose the boolean
+`downtime_enabled` alongside the stored schedule; existing profile-write requests
+preserve this flag. The switch is currently provided by LuCI, not the mobile
+editor. Empty windows have no effect unless older fallback schedule options are
+present. Use the explicit switch for an unambiguous disable operation.

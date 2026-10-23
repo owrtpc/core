@@ -136,6 +136,7 @@ snapshot_profile() {
 	config_get name "$section" name "$section"
 	config_get_bool enabled "$section" enabled 1
 	config_get_bool blocked "$section" blocked 0
+	config_get_bool downtime_enabled "$section" downtime_enabled 1
 	config_get mon_thu "$section" mon_thu_daily_minutes ''
 	[ -n "$mon_thu" ] || config_get mon_thu "$section" weekday_daily_minutes ''
 	[ -n "$mon_thu" ] || config_get mon_thu "$section" daily_minutes 0
@@ -161,6 +162,7 @@ snapshot_profile() {
 	json_add_string name "$name"
 	json_add_boolean enabled "$enabled"
 	json_add_boolean blocked "$blocked"
+	json_add_boolean downtime_enabled "$downtime_enabled"
 	json_add_int mon_thu_daily_minutes "${mon_thu:-0}"
 	json_add_int fri_sun_daily_minutes "${fri_sun:-0}"
 	json_add_string sun_thu_bedtime_start "$sun_start"

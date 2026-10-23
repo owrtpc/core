@@ -24,7 +24,7 @@ function harness({ writable = true, changes = {}, response = { success: true }, 
 		return response;
 	} };
 	class FormMap {
-		section() { return { option: () => ({ value() {} }) }; }
+		section() { return { option: () => ({ value() {}, depends() {} }) }; }
 		async render() { return E('div', {}, []); }
 	}
 	const page = new Function('view', 'form', 'uci', 'rpc', 'ui', 'devices', 'L', 'E', '_', 'window', 'document', source)(

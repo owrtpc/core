@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=owrtpc
 PKG_VERSION:=0.4.0
-PKG_RELEASE:=8
+PKG_RELEASE:=9
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Fabrizio Pellegrini <desmofab@gmail.com>
 

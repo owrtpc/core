@@ -6,6 +6,16 @@ project intends to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0-r9] - 2026-10-23
+
+### Added
+
+- Add a per-profile down-time switch in LuCI. Disabling scheduled pauses
+  preserves saved hours while daily budgets and manual blocks remain active.
+  Existing profiles retain their previous behavior until explicitly changed.
+- Expose the down-time flag in profile edit snapshots without changing existing
+  profile-write requests.
+
 ## [0.4.0-r8] - 2026-10-22
 
 ### Changed

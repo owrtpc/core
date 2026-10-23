@@ -21,7 +21,7 @@ const options = {};
 class FormMap {
 	section() {
 		return { option(_type, name) {
-			const option = { choices: [], value(key, label) { this.choices.push([key, label]); } };
+			const option = { choices: [], depends() {}, value(key, label) { this.choices.push([key, label]); } };
 			options[name] = option;
 			return option;
 		} };

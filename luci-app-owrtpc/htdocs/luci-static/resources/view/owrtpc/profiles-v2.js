@@ -357,6 +357,8 @@ return view.extend({
 		o = s.option(form.DummyValue, '_bedtime', _('Down time'));
 		o.modalonly = false;
 		o.cfgvalue = function(sectionId) {
+			if (uci.get('owrtpc', sectionId, 'downtime_enabled') === '0')
+				return _('Disabled');
 			var period = status[sectionId] ? status[sectionId].bedtime_period : 'sun_thu';
 			var compatibilitySchedule = period === 'fri_sat' ? 'weekend' : 'weekday';
 			var start = periodValue(sectionId, period, compatibilitySchedule, 'bedtime_start', 'bedtime_start', '');
@@ -398,26 +400,48 @@ return view.extend({
 		addHeading('_downtime_heading', 'Ⅱ', _('Down time'),
 			_('Suspend Internet access at scheduled times, even when daily time remains. A window may be during the day or cross midnight.'));
 
+		o = s.option(form.Flag, 'downtime_enabled', _('Enable down time'));
+		o.default = '0';
+		o.rmempty = false;
+		o.modalonly = true;
+		o.description = _('When disabled, only the scheduled pause is ignored. Daily time and manual blocks still apply. Saved hours are kept.');
+		o.cfgvalue = function(sectionId) {
+			var saved = uci.get('owrtpc', sectionId, 'downtime_enabled');
+			if (saved != null) return saved;
+			return [ ['sun_thu', 'weekday'], ['fri_sat', 'weekend'] ].some(function(period) {
+				return periodValue(sectionId, period[0], period[1], 'bedtime_start', 'bedtime_start', '') &&
+					periodValue(sectionId, period[0], period[1], 'bedtime_end', 'bedtime_end', '');
+			}) ? '1' : '0';
+		};
+
 		o = s.option(form.Value, 'sun_thu_bedtime_start', _('Sunday–Thursday: start'));
 		o.placeholder = '21:30';
 		o.modalonly = true;
+		o.depends('downtime_enabled', '1');
+		o.retain = true;
 		o.description = _('The day identifies when down time starts. Router local time; leave both Sunday–Thursday fields empty to disable.');
 		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'sun_thu', 'weekday', 'bedtime_start', 'bedtime_start', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '21:30'); };
 		o = s.option(form.Value, 'sun_thu_bedtime_end', _('Sunday–Thursday: end'));
 		o.placeholder = '07:00';
 		o.modalonly = true;
+		o.depends('downtime_enabled', '1');
+		o.retain = true;
 		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'sun_thu', 'weekday', 'bedtime_end', 'bedtime_end', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '07:00'); };
 		o = s.option(form.Value, 'fri_sat_bedtime_start', _('Friday–Saturday: start'));
 		o.placeholder = '23:00';
 		o.modalonly = true;
+		o.depends('downtime_enabled', '1');
+		o.retain = true;
 		o.description = _('The day identifies when down time starts. Router local time; leave both Friday–Saturday fields empty to disable.');
 		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'fri_sat', 'weekend', 'bedtime_start', 'bedtime_start', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '23:00'); };
 		o = s.option(form.Value, 'fri_sat_bedtime_end', _('Friday–Saturday: end'));
 		o.placeholder = '09:00';
 		o.modalonly = true;
+		o.depends('downtime_enabled', '1');
+		o.retain = true;
 		o.cfgvalue = function(sectionId) { return periodValue(sectionId, 'fri_sat', 'weekend', 'bedtime_end', 'bedtime_end', ''); };
 		o.validate = function(sectionId, value) { return validateTime(value, '09:00'); };
 
